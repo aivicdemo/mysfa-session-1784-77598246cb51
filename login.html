@@ -24,50 +24,37 @@
       box-sizing: border-box;
     }
 
-    html, body {
-      width: 100%;
-      height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background-color: var(--bg-main);
-      color: var(--text);
-    }
-
     body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: var(--bg-main);
+      color: var(--text);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      min-height: 100vh;
+      padding: 16px;
     }
 
     .login-container {
       width: 100%;
-      max-width: 420px;
-    }
-
-    .login-card {
-      background-color: var(--bg-card);
+      max-width: 400px;
+      background: var(--bg-card);
       border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
       padding: 48px 32px;
-      text-align: center;
     }
 
-    .login-logo {
+    .login-header {
+      text-align: center;
       margin-bottom: 32px;
     }
 
-    .login-logo-text {
-      font-size: 28px;
+    .login-logo {
+      font-size: 24px;
       font-weight: 700;
       color: var(--primary);
+      margin-bottom: 16px;
       letter-spacing: -0.5px;
-    }
-
-    .login-logo-subtext {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 4px;
-      font-weight: 500;
     }
 
     .login-title {
@@ -77,10 +64,9 @@
       margin-bottom: 8px;
     }
 
-    .login-description {
+    .login-subtitle {
       font-size: 14px;
       color: var(--text-muted);
-      margin-bottom: 32px;
       line-height: 1.5;
     }
 
@@ -93,131 +79,123 @@
     .form-group {
       display: flex;
       flex-direction: column;
-      text-align: left;
+      gap: 6px;
     }
 
-    .form-label {
+    .form-group label {
       font-size: 13px;
       font-weight: 600;
       color: var(--text);
-      margin-bottom: 6px;
       display: block;
     }
 
-    .form-input {
-      width: 100%;
+    .form-group input {
       padding: 10px 12px;
-      font-size: 14px;
       border: 1px solid var(--border);
       border-radius: 4px;
-      background-color: var(--bg-card);
+      font-size: 14px;
       color: var(--text);
+      background: var(--bg-card);
       transition: border-color 0.2s, box-shadow 0.2s;
       font-family: inherit;
     }
 
-    .form-input:focus {
+    .form-group input:focus {
       outline: none;
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(0, 112, 210, 0.1);
     }
 
-    .form-input::placeholder {
+    .form-group input::placeholder {
       color: var(--text-muted);
     }
 
     .login-button {
-      width: 100%;
       padding: 10px 16px;
-      font-size: 14px;
-      font-weight: 600;
+      background: var(--primary);
       color: #ffffff;
-      background-color: var(--primary);
       border: none;
       border-radius: 4px;
+      font-size: 14px;
+      font-weight: 600;
       cursor: pointer;
-      transition: background-color 0.2s, box-shadow 0.2s;
+      transition: background-color 0.2s;
       margin-top: 8px;
     }
 
     .login-button:hover {
-      background-color: var(--primary-hover);
+      background: var(--primary-hover);
     }
 
     .login-button:active {
-      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+      transform: scale(0.98);
     }
 
     .login-footer {
       margin-top: 32px;
       padding-top: 24px;
       border-top: 1px solid var(--border);
+      text-align: center;
       font-size: 12px;
       color: var(--text-muted);
       line-height: 1.6;
     }
 
     @media (max-width: 480px) {
-      .login-card {
+      .login-container {
         padding: 32px 24px;
+      }
+
+      .login-header {
+        margin-bottom: 24px;
       }
 
       .login-title {
         font-size: 18px;
-      }
-
-      .login-logo-text {
-        font-size: 24px;
       }
     }
   </style>
 </head>
 <body>
   <div class="login-container">
-    <div class="login-card">
-      <div class="login-logo">
-        <div class="login-logo-text">MySFA</div>
-        <div class="login-logo-subtext">営業管理システム</div>
-      </div>
-
+    <div class="login-header">
+      <div class="login-logo">MySFA</div>
       <h1 class="login-title" data-testid="login-title">ログイン</h1>
-      <p class="login-description">営業管理システムにアクセスするにはログインしてください</p>
+      <p class="login-subtitle">営業管理システムへようこそ</p>
+    </div>
 
-      <form class="login-form" data-testid="login-form" novalidate>
-        <div class="form-group">
-          <label class="form-label" for="username">ユーザー名またはメールアドレス</label>
-          <input
-            class="form-input"
-            type="text"
-            id="username"
-            name="username"
-            data-testid="username"
-            placeholder="user@example.com"
-            autocomplete="username"
-          >
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="password">パスワード</label>
-          <input
-            class="form-input"
-            type="password"
-            id="password"
-            name="password"
-            data-testid="password"
-            placeholder="••••••••"
-            autocomplete="current-password"
-          >
-        </div>
-
-        <button class="login-button" type="submit" data-testid="login-button">
-          ログイン
-        </button>
-      </form>
-
-      <div class="login-footer">
-        <p>※ このサンプル実装では、どのような入力でもログインできます。</p>
+    <form class="login-form" data-testid="login-form" novalidate>
+      <div class="form-group">
+        <label for="username">ユーザー名</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          data-testid="username"
+          placeholder="ユーザー名を入力"
+          autocomplete="username"
+        >
       </div>
+
+      <div class="form-group">
+        <label for="password">パスワード</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          data-testid="password"
+          placeholder="パスワードを入力"
+          autocomplete="current-password"
+        >
+      </div>
+
+      <button type="submit" class="login-button" data-testid="login-button">
+        ログイン
+      </button>
+    </form>
+
+    <div class="login-footer">
+      <p>※ サンプル実装では、どの入力でもログインできます</p>
     </div>
   </div>
 
