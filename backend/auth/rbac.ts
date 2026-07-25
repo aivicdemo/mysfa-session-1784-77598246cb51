@@ -10,124 +10,56 @@ export interface AuthContext {
 
 export const ROLE_PERMISSIONS: Record<Role, Set<string>> = {
   admin: new Set([
-    'user:create',
-    'user:read',
-    'user:update',
-    'user:delete',
-    'customer:create',
-    'customer:read',
-    'customer:update',
-    'customer:delete',
-    'deal:create',
-    'deal:read',
-    'deal:update',
-    'deal:delete',
-    'quote:create',
-    'quote:read',
-    'quote:update',
-    'quote:delete',
-    'order:create',
-    'order:read',
-    'order:update',
-    'order:delete',
-    'invoice:create',
-    'invoice:read',
-    'invoice:update',
-    'invoice:delete',
-    'invoiceDetail:create',
-    'invoiceDetail:read',
-    'invoiceDetail:update',
-    'invoiceDetail:delete',
-    'dealActivity:create',
-    'dealActivity:read',
-    'dealActivity:update',
-    'dealActivity:delete',
-    'dealStatusHistory:create',
-    'dealStatusHistory:read',
-    'dealStatusHistory:delete',
-    'issue:create',
-    'issue:read',
-    'issue:update',
-    'issue:delete',
-    'issueResolution:create',
-    'issueResolution:read',
-    'issueResolution:update',
-    'issueResolution:delete',
-    'revenue:create',
-    'revenue:read',
-    'revenue:update',
-    'revenue:delete',
-    'auditLog:read',
-    'bulk:import',
+    'GET_RESOURCES',
+    'POST_BULK_USERS',
+    'POST_BULK_CUSTOMERS',
+    'POST_BULK_DEALS',
+    'POST_BULK_QUOTES',
+    'POST_BULK_ORDERS',
+    'POST_BULK_INVOICES',
+    'POST_BULK_INVOICE_DETAILS',
+    'POST_BULK_DEAL_ACTIVITIES',
+    'POST_BULK_DEAL_STATUS_HISTORY',
+    'POST_BULK_ISSUES',
+    'POST_BULK_ISSUE_RESOLUTIONS',
+    'POST_BULK_SALES_RESULTS',
+    'POST_BULK_AUDIT_LOGS',
   ]),
   operator: new Set([
-    'user:read',
-    'customer:create',
-    'customer:read',
-    'customer:update',
-    'deal:create',
-    'deal:read',
-    'deal:update',
-    'quote:create',
-    'quote:read',
-    'quote:update',
-    'order:create',
-    'order:read',
-    'order:update',
-    'invoice:create',
-    'invoice:read',
-    'invoice:update',
-    'invoiceDetail:create',
-    'invoiceDetail:read',
-    'invoiceDetail:update',
-    'dealActivity:create',
-    'dealActivity:read',
-    'dealActivity:update',
-    'dealStatusHistory:create',
-    'dealStatusHistory:read',
-    'issue:create',
-    'issue:read',
-    'issue:update',
-    'issueResolution:create',
-    'issueResolution:read',
-    'issueResolution:update',
-    'revenue:create',
-    'revenue:read',
-    'revenue:update',
-    'auditLog:read',
-    'bulk:import',
+    'GET_RESOURCES',
+    'POST_BULK_USERS',
+    'POST_BULK_CUSTOMERS',
+    'POST_BULK_DEALS',
+    'POST_BULK_QUOTES',
+    'POST_BULK_ORDERS',
+    'POST_BULK_INVOICES',
+    'POST_BULK_INVOICE_DETAILS',
+    'POST_BULK_DEAL_ACTIVITIES',
+    'POST_BULK_DEAL_STATUS_HISTORY',
+    'POST_BULK_ISSUES',
+    'POST_BULK_ISSUE_RESOLUTIONS',
+    'POST_BULK_SALES_RESULTS',
   ]),
-  viewer: new Set([
-    'user:read',
-    'customer:read',
-    'deal:read',
-    'quote:read',
-    'order:read',
-    'invoice:read',
-    'invoiceDetail:read',
-    'dealActivity:read',
-    'dealStatusHistory:read',
-    'issue:read',
-    'issueResolution:read',
-    'revenue:read',
-    'auditLog:read',
-  ]),
+  viewer: new Set(['GET_RESOURCES']),
 };
 
-export function extractAuthContext(event: APIGatewayProxyEvent): AuthContext | null {
-  const authHeader = event.headers?.Authorization || event.headers?.authorization;
-  if (!authHeader) return null;
+export function extractAuthContext(event: APIGatewayProxyEvent): AuthContext {
+  const authHeader = event.headers?.Authorization || event.headers?.authorization || '';
+  const token = authHeader.replace('Bearer ', '');
 
   try {
-    const token = authHeader.replace('Bearer ', '');
     const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
     return {
-      userId: decoded.userId,
-      role: decoded.role as Role,
-      loginId: decoded.loginId,
+      userId: decoded.userId || 'unknown',
+      role: (decoded.role || 'viewer') as Role,
+      loginId: decoded.loginId || 'unknown',
     };
   } catch {
-    return null;
+    return {
+      userId: 'unknown',
+      role: 'viewer',
+      loginId: 'unknown',
+    };
   }
 }
 
@@ -135,7 +67,7 @@ export function hasPermission(role: Role, permission: string): boolean {
   return ROLE_PERMISSIONS[role]?.has(permission) ?? false;
 }
 
-export function requirePermission(role: Role, permission: string): void {
+export function checkPermission(role: Role, permission: string): void {
   if (!hasPermission(role, permission)) {
     throw new ForbiddenError(`Permission denied: ${permission}`);
   }
@@ -145,13 +77,6 @@ export class ForbiddenError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ForbiddenError';
-  }
-}
-
-export class UnauthorizedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'UnauthorizedError';
   }
 }
 
