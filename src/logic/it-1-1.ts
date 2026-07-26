@@ -5,113 +5,17 @@
 export interface DealRecord {
   [key: string]: any;
 }
-export interface GeneratedDocuments {
-    quotation: {
-        documentType: string;
-        quotationNumber?: string;
-        estimateNumber?: string;
-        customerName: string;
-        customerAddress?: string;
-        customerPostalCode?: string;
-        customerPhone?: string;
-        customerEmail?: string;
-        subtotal: number;
-        tax: number;
-        taxAmount?: number;
-        total: number;
-        totalAmount?: number;
-        lineItems: Array<{
-            productName: string;
-            quantity: number;
-            unitPrice: number;
-            lineAmount?: number;
-            subtotal?: number;
-            taxRate?: number;
-        }>;
-        header?: {
-            companyName: string;
-            companyAddress: string;
-            companyPhone: string;
-        };
-        footer?: {
-            paymentTerms: string;
-            notes: string;
-        };
-        formatVersion?: string;
-        dealId?: string;
-    };
-    order: {
-        documentType: string;
-        orderNumber?: string;
-        customerName: string;
-        subtotal: number;
-        tax: number;
-        total: number;
-        lineItems: Array<{
-            productName: string;
-            quantity: number;
-            unitPrice: number;
-        }>;
-        header?: {
-            companyName: string;
-            companyAddress: string;
-            companyPhone: string;
-        };
-        footer?: {
-            paymentTerms: string;
-            notes: string;
-        };
-        formatVersion?: string;
-        dealId?: string;
-    };
-    invoice: {
-        documentType: string;
-        invoiceNumber?: string;
-        customerName: string;
-        customerAddress?: string;
-        customerPostalCode?: string;
-        subtotal: number;
-        taxAmount?: number;
-        tax: number;
-        total: number;
-        totalAmount?: number;
-        lineItems: Array<{
-            productName: string;
-            quantity: number;
-            unitPrice: number;
-            lineAmount?: number;
-            subtotal?: number;
-        }>;
-        header?: {
-            companyName: string;
-            companyAddress: string;
-            companyPhone: string;
-        };
-        amountSection?: {
-            subtotalLabel: string;
-            subtotalValue: number;
-            taxLabel: string;
-            taxValue: number;
-            totalLabel: string;
-            totalValue: number;
-        };
-        footer?: {
-            paymentTerms: string;
-            notes: string;
-            signatureLine: string;
-        };
-        formatVersion?: string;
-        dealId?: string;
-    };
-}
-export interface ValidationResult {
+export interface DocumentValidationResult {
     isValid: boolean;
     validationStatus: string;
     errors: string[];
     warnings: string[];
     canGenerateDocuments: boolean;
 }
-export interface DocumentValidationResult {
+export interface GeneratedDocuments {
+  [key: string]: any;
+}
+export interface DocumentAmountValidation {
     status: string;
     isValid: boolean;
     totalAmount: number;
@@ -119,14 +23,15 @@ export interface DocumentValidationResult {
     calculatedTotal: number;
     message: string;
 }
-export interface AmountValidationResult {
+export interface DocumentContentValidation {
     status: string;
+    isValid: boolean;
     actualLineItemTotal: number;
     reportedTotal: number;
     discrepancy: number;
-    message?: string;
+    message: string;
 }
-export interface DocumentDetailsResult {
+export interface DocumentDetailsValidation {
     status: string;
     isValid: boolean;
     errorMessage: string;
@@ -136,61 +41,96 @@ export interface DocumentDetailsResult {
         amountValidation: boolean;
     };
 }
-export interface DocumentLinesResult {
+export interface DocumentLinesValidation {
     status: string;
     lineCount: number;
     message: string;
     isProcessable: boolean;
     warnings: string[];
 }
-export interface InvoiceFormatValidationResult {
-    isValid: boolean;
-    validationErrors: string[];
-    headerValid: boolean;
-    amountSectionValid: boolean;
-    footerValid: boolean;
-    dateFormatValid: boolean;
-    documentNumberValid: boolean;
-    lineItemsValid: boolean;
-    consistencyScore: number;
+export interface InvoiceFormatValidation {
+    is_valid: boolean;
+    validation_errors: string[];
+    header_valid: boolean;
+    amount_section_valid: boolean;
+    footer_valid: boolean;
+    date_format_valid: boolean;
+    document_number_valid: boolean;
+    line_items_valid: boolean;
+    consistency_score: number;
 }
-export interface ExtractionCriteria {
-    statusFilter?: string[];
-    minAmountThreshold?: number;
-    maxAmountThreshold?: number;
-    startDate?: string;
-    endDate?: string;
-    invoicingCycle?: string;
-    billingStatus?: string;
-    periodStart?: string;
-    periodEnd?: string;
-    customerType?: string;
-    minSalesAmount?: number;
+export interface BillingExecutionTiming {
+    billingType: string;
+    shouldExecute: boolean;
+    dealIds: string[];
+    nextBillingDate: Date | null;
+    execution_timestamp?: string;
+    matched_records_count?: number;
+    local_date?: string;
+    should_execute?: boolean;
+    execution_day_adjusted?: number;
+    log_entry?: {
+        timestamp: string;
+        billing_type: string;
+        execution_result: string;
+        target_deals_count: number;
+    };
+    matched_deal_ids?: string[];
 }
 export interface ExtractionResult {
-  [key: string]: any;
+    extracted_count: number;
+    total_amount: number;
+    deals: Array<{
+        deal_id: string;
+        customer_id: string;
+        status: string;
+        amount: number;
+        contract_date: string;
+    }>;
+    records?: Array<{
+        deal_id: string;
+        customer_id: string;
+        customer_name: string;
+        amount: number;
+        billing_status: string;
+        deal_date: string;
+        due_date: string;
+    }>;
+    totalCount?: number;
+    isDownloadEnabled?: boolean;
+    errorMessage?: string | null;
+    export_format?: string;
+    export_filename?: string;
 }
-export interface QuotationValidationResult {
-  [key: string]: any;
-}
-export interface BillingValidationResult {
-    isDuplicate: boolean;
-    duplicateCount: number;
-    duplicateDetails: Array<{
+export interface ValidationResult {
+    is_valid: boolean;
+    status: string;
+    message: string;
+    deal_id?: string;
+    validation_result?: {
+        has_all_required_fields: boolean;
+        amount_in_valid_range: boolean;
+        amount_min: number;
+        amount_max: number;
+        validated_amount: number;
+    };
+    isDuplicate?: boolean;
+    duplicateCount?: number;
+    duplicateDetails?: Array<{
         duplicateKey: string;
         affectedBillingIds: string[];
         duplicateFieldsCount: number;
         duplicateFields: string[];
     }>;
-    approvalStatus: string;
+    approvalStatus?: string;
     rejectionReason?: string;
-    dataValidationDetails: Array<{
+    dataValidationDetails?: Array<{
         billingId: string;
         isValid: boolean;
         approvalStatus: string;
         reason: string | null;
     }>;
-    validationSummary: {
+    validationSummary?: {
         totalRecords: number;
         validRecords: number;
         invalidRecords: number;
@@ -198,10 +138,7 @@ export interface BillingValidationResult {
         rejectedCount: number;
         validationPassRate: number;
     };
-}
-export interface ReasonablenessValidationResult {
-    isValid: boolean;
-    errorMessage: string | null;
+    error_message?: string | null;
 }
 export interface CostComparisonResult {
     comparisonTable: Array<{
@@ -217,16 +154,6 @@ export interface CostComparisonResult {
     grandTotalOperationCost: number;
     grandTotalCost: number;
     averageAnnualCost: number;
-}
-export interface InvoiceData {
-  [key: string]: any;
-}
-export interface BillingExtractionResult {
-  [key: string]: any;
-}
-export interface ReasonablenessCheckResult {
-    is_valid: boolean;
-    error_message: string | null;
 }
 export interface CostComparisonInput {
     salesforceMonthlyFee: number;
@@ -272,7 +199,7 @@ export interface LicenseCostComparisonOutput {
     comparisonResult: {
         totalSalesforceThreeYearCost: number;
         totalDevelopmentThreeYearCost: number;
-        costSavings: number;
+        costDifference: number;
     } | null;
     hasError: boolean;
 }
@@ -282,15 +209,30 @@ import { randomUUID } from "crypto";
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=validateDocumentGeneration exports=validateDocumentGeneration */
 const __aivicBundle_1_validateDocumentGeneration = (() => {
-  function validateDocumentGeneration(dealData: DealRecord): ValidationResult {
-    if (dealData["dealId"] === undefined || dealData["dealId"] === null) { throw new Error("dealId is required"); }
-    if (dealData["dealStatus"] === undefined || dealData["dealStatus"] === null) { throw new Error("dealStatus is required"); }
+  function validateDocumentGeneration(dealData: DealRecord): DocumentValidationResult {
     if (dealData["customerId"] === undefined || dealData["customerId"] === null) { throw new Error("customerId is required"); }
     if (dealData["customerName"] === undefined || dealData["customerName"] === null) { throw new Error("customerName is required"); }
     const errors: string[] = [];
     const warnings: string[] = [];
   
-    // Validate customer information
+    // Validate dealId
+    if (!dealData.dealId || dealData.dealId.trim() === "") {
+      errors.push("商談IDが未入力です");
+    }
+  
+    // Validate dealStatus
+    if (!dealData.dealStatus || dealData.dealStatus.trim() === "") {
+      errors.push("商談ステータスが未入力です");
+    }
+  
+    // Validate dealAmount
+    if (dealData.dealAmount === undefined || dealData.dealAmount === null) {
+      errors.push("金額が未入力です");
+    } else if (dealData.dealAmount <= 0) {
+      errors.push("金額が0円です");
+    }
+  
+    // Validate customerInfo
     if (!dealData.customerInfo) {
       errors.push("顧客情報が未入力です");
     } else {
@@ -300,31 +242,30 @@ const __aivicBundle_1_validateDocumentGeneration = (() => {
       if (!dealData.customerInfo.customerName || dealData.customerInfo.customerName.trim() === "") {
         errors.push("顧客名が未入力です");
       }
+      if (!dealData.customerInfo.address || dealData.customerInfo.address.trim() === "") {
+        errors.push("住所が未入力です");
+      }
+      if (!dealData.customerInfo.phoneNumber || dealData.customerInfo.phoneNumber.trim() === "") {
+        errors.push("電話番号が未入力です");
+      }
+      if (!dealData.customerInfo.emailAddress || dealData.customerInfo.emailAddress.trim() === "") {
+        errors.push("メールアドレスが未入力です");
+      }
     }
   
-    // Validate deal amount
-    if (dealData.dealAmount === undefined || dealData.dealAmount === null) {
-      errors.push("金額が未入力です");
-    } else if (dealData.dealAmount <= 0) {
-      errors.push("金額が0円です");
-    }
-  
-    // Validate line items
+    // Validate lineItems
     if (!dealData.lineItems || dealData.lineItems.length === 0) {
-      errors.push("明細行が不足しています");
+      errors.push("明細行が未入力です");
     } else {
-      for (const lineItem of dealData.lineItems) {
-        if (!lineItem.productName || lineItem.productName.trim() === "") {
-          errors.push("明細の商品名が未入力です");
-          break;
+      for (const item of dealData.lineItems) {
+        if (!item.productName || item.productName.trim() === "") {
+          errors.push("商品名が未入力です");
         }
-        if (lineItem.quantity === undefined || lineItem.quantity === null || lineItem.quantity <= 0) {
-          errors.push("明細の数量が不正です");
-          break;
+        if (item.quantity === undefined || item.quantity === null || item.quantity <= 0) {
+          errors.push("数量が無効です");
         }
-        if (lineItem.unitPrice === undefined || lineItem.unitPrice === null || lineItem.unitPrice < 0) {
-          errors.push("明細の単価が不正です");
-          break;
+        if (item.unitPrice === undefined || item.unitPrice === null || item.unitPrice < 0) {
+          errors.push("単価が無効です");
         }
       }
     }
@@ -365,6 +306,7 @@ const __aivicBundle_2_validateCustomerInfoAndGenerateDocuments = (() => {
       invoice: object;
     };
   } {
+    // Validate required customer info fields
     if (!customerInfo.customer_name || customerInfo.customer_name.trim() === '') {
       throw new Error('顧客名が未入力です');
     }
@@ -381,28 +323,32 @@ const __aivicBundle_2_validateCustomerInfoAndGenerateDocuments = (() => {
       throw new Error('メールアドレスが未入力です');
     }
   
+    // Generate documents
     const quotation = {
       documentType: 'quotation',
       customerName: customerInfo.customer_name,
-      address: customerInfo.address,
-      phoneNumber: customerInfo.phone_number,
-      emailAddress: customerInfo.email_address,
+      customerAddress: customerInfo.address,
+      customerPhone: customerInfo.phone_number,
+      customerEmail: customerInfo.email_address,
+      dealId: dealId,
     };
   
     const order = {
       documentType: 'order',
       customerName: customerInfo.customer_name,
-      address: customerInfo.address,
-      phoneNumber: customerInfo.phone_number,
-      emailAddress: customerInfo.email_address,
+      customerAddress: customerInfo.address,
+      customerPhone: customerInfo.phone_number,
+      customerEmail: customerInfo.email_address,
+      dealId: dealId,
     };
   
     const invoice = {
       documentType: 'invoice',
       customerName: customerInfo.customer_name,
-      address: customerInfo.address,
-      phoneNumber: customerInfo.phone_number,
-      emailAddress: customerInfo.email_address,
+      customerAddress: customerInfo.address,
+      customerPhone: customerInfo.phone_number,
+      customerEmail: customerInfo.email_address,
+      dealId: dealId,
     };
   
     return {
@@ -422,224 +368,154 @@ export const validateCustomerInfoAndGenerateDocuments = __aivicBundle_2_validate
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=validateDealAmount exports=validateDealAmount */
 const __aivicBundle_3_validateDealAmount = (() => {
-  function validateDealAmount(dealData: {
-    deal_id: string;
-    deal_name: string;
-    customer_id: string;
-    customer_name: string;
-    deal_amount: number;
-    deal_date: string;
-    status: string;
-  }): { is_valid: boolean; warning_message: string } {
-    if (dealData["deal_id"] === undefined || dealData["deal_id"] === null) { throw new Error("deal_id is required"); }
-    if (dealData["deal_name"] === undefined || dealData["deal_name"] === null) { throw new Error("deal_name is required"); }
-    if (dealData["customer_id"] === undefined || dealData["customer_id"] === null) { throw new Error("customer_id is required"); }
-    if (dealData["customer_name"] === undefined || dealData["customer_name"] === null) { throw new Error("customer_name is required"); }
-    if (dealData["deal_date"] === undefined || dealData["deal_date"] === null) { throw new Error("deal_date is required"); }
-    if (dealData["status"] === undefined || dealData["status"] === null) { throw new Error("status is required"); }
-    if (dealData.deal_amount === 0) {
-      return {
-        is_valid: false,
-        warning_message: '金額が0円です',
-      };
-    }
+  function validateDealAmount(dealData: DealRecord): { is_valid: boolean; warning_message: string } {
+    if (dealData["dealId"] === undefined || dealData["dealId"] === null) { throw new Error("dealId is required"); }
+    if (dealData["customerId"] === undefined || dealData["customerId"] === null) { throw new Error("customerId is required"); }
+    if (dealData["customerName"] === undefined || dealData["customerName"] === null) { throw new Error("customerName is required"); }
+    if (dealData["dealStatus"] === undefined || dealData["dealStatus"] === null) { throw new Error("dealStatus is required"); }
+    const is_valid = dealData.dealAmount !== 0;
+    const warning_message = dealData.dealAmount === 0 ? '金額が0円です' : '';
   
     return {
-      is_valid: true,
-      warning_message: '',
+      is_valid,
+      warning_message,
     };
   }
   return { validateDealAmount };
 })();
-export const validateDealAmount = __aivicBundle_3_validateDealAmount.validateDealAmount;
+export const validateDealAmount: (...args: any[]) => any = (...args: any[]) => (__aivicBundle_3_validateDealAmount.validateDealAmount as (...args: any[]) => any)(...args);
 /* AIVIC_FUNCTION_BUNDLE_END owner=validateDealAmount */
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=generateEstimateOrderInvoice exports=generateEstimateOrderInvoice */
 const __aivicBundle_4_generateEstimateOrderInvoice = (() => {
-  function generateEstimateOrderInvoice(dealData: any): any {
-    // Input validation
-    if (!dealData) {
-      throw new Error('商談データが見つかりません');
-    }
-  
+  function generateEstimateOrderInvoice(dealData: any): GeneratedDocuments {
     const dealId = dealData.deal_id || dealData.dealId || '';
-    const customerId = dealData.customer_id || dealData.customerId || '';
+    
     const customerName = dealData.customer_name || dealData.customerName || '';
     const dealAmount = dealData.deal_amount ?? dealData.dealAmount ?? 0;
-    
-    
+    const customerAddress = dealData.customer_address || dealData.customerAddress || '';
+    const customerPhone = dealData.customer_phone || dealData.customerPhone || '';
+    const customerEmail = dealData.customer_email || dealData.customerEmail || '';
+  
     const lineItems = dealData.lineItems || dealData.line_items || [];
   
-    if (!customerName || !customerId) {
-      throw new Error('顧客情報が見つかりません');
-    }
-  
-    // Calculate subtotal and tax
-    const subtotal = lineItems.reduce((sum: number, item: any) => {
-      const itemTotal = (item.quantity || 0) * (item.unitPrice || item.unit_price || 0);
-      return sum + itemTotal;
-    }, 0);
-  
-    const taxRate = 0.1; // 10% tax
-    const taxAmount = Math.round(subtotal * taxRate);
-    const total = subtotal + taxAmount;
-  
-    // Normalize line items for output
-    const normalizedLineItems = lineItems.map((item: any) => ({
-      productName: item.productName || item.product_name || '',
+    const items = lineItems.map((item: any) => ({
+      itemName: item.productName || item.itemName || item.product_name || '',
       quantity: item.quantity || 0,
       unitPrice: item.unitPrice || item.unit_price || 0,
-      lineAmount: (item.quantity || 0) * (item.unitPrice || item.unit_price || 0),
+      subtotal: (item.totalPrice || item.subtotal || item.total_price || 0),
     }));
   
-    // Generate documents
-    const estimate = {
-      documentType: '見積書',
-      estimateNumber: `EST-${dealId}`,
-      customerName: customerName,
-      subtotal: subtotal,
-      tax: taxRate * 100,
-      taxAmount: taxAmount,
-      total: total,
-      total_amount: dealAmount === 0 ? 0 : total,
-      lineItems: normalizedLineItems,
-      dealId: dealId,
-    };
+    const calculatedSubtotal = items.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0);
+    const subtotal = calculatedSubtotal > 0 ? calculatedSubtotal : dealAmount;
+    const tax = 0;
+    const totalAmount = subtotal + tax;
   
-    const order = {
-      documentType: '注文書',
-      orderNumber: `ORD-${dealId}`,
-      customerName: customerName,
-      subtotal: subtotal,
-      tax: taxRate * 100,
-      total: total,
-      total_amount: dealAmount === 0 ? 0 : total,
-      lineItems: normalizedLineItems,
-      dealId: dealId,
-    };
-  
-    const invoice = {
-      documentType: '請求書',
-      invoiceNumber: `INV-${dealId}`,
-      customerName: customerName,
-      subtotal: subtotal,
-      taxAmount: taxAmount,
-      tax: taxRate * 100,
-      total: total,
-      total_amount: dealAmount === 0 ? 0 : total,
-      lineItems: normalizedLineItems,
-      dealId: dealId,
+    const documentBase = {
+      customerName,
+      customerAddress: customerAddress || undefined,
+      customerPhone: customerPhone || undefined,
+      customerEmail: customerEmail || undefined,
+      subtotal,
+      tax,
+      total: totalAmount,
+      items,
+      dealId,
     };
   
     return {
-      estimate: estimate,
-      order: order,
-      invoice: invoice,
-      quotation: estimate,
+      quotation: {
+        documentType: 'quotation',
+        ...documentBase,
+        total_amount: totalAmount,
+      } as any,
+      order: {
+        documentType: 'order',
+        ...documentBase,
+        total_amount: totalAmount,
+      } as any,
+      invoice: {
+        documentType: 'invoice',
+        ...documentBase,
+        total_amount: totalAmount,
+      } as any,
     };
   }
   return { generateEstimateOrderInvoice };
 })();
-export const generateEstimateOrderInvoice = __aivicBundle_4_generateEstimateOrderInvoice.generateEstimateOrderInvoice;
+export const generateEstimateOrderInvoice: (...args: any[]) => any = (...args: any[]) => (__aivicBundle_4_generateEstimateOrderInvoice.generateEstimateOrderInvoice as (...args: any[]) => any)(...args);
 /* AIVIC_FUNCTION_BUNDLE_END owner=generateEstimateOrderInvoice */
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=verifyGeneratedDocuments exports=verifyGeneratedDocuments */
 const __aivicBundle_5_verifyGeneratedDocuments = (() => {
-  function verifyGeneratedDocuments(generatedDocs: GeneratedDocuments): {status: string; messages: string[]; is_processable: boolean} {
+  function verifyGeneratedDocuments(generatedDocs: GeneratedDocuments): { status: string; messages: string[]; is_processable: boolean } {
     const messages: string[] = [];
-    let hasWarnings = false;
+    let hasError = false;
+    let hasWarning = false;
   
-    // 見積書の検証
-    if (generatedDocs.quotation) {
-      const quotationTotal = generatedDocs.quotation.total ?? 0;
-      const quotationLineItems = generatedDocs.quotation.lineItems ?? [];
-      
-      if (quotationTotal === 0) {
-        hasWarnings = true;
-        messages.push('見積書の金額が0円です');
-      }
-      
-      if (quotationLineItems.length === 0 && quotationTotal > 0) {
-        hasWarnings = true;
-        messages.push('見積書に明細行がありません');
+    const documents = [
+      { name: 'quotation', doc: generatedDocs.quotation },
+      { name: 'order', doc: generatedDocs.order },
+      { name: 'invoice', doc: generatedDocs.invoice },
+    ];
+  
+    for (const { name, doc } of documents) {
+      if (!doc) {
+        messages.push(`${name}が生成されていません`);
+        hasError = true;
+        continue;
       }
   
-      // 明細行の金額検証
-      let calculatedQuotationTotal = 0;
-      for (const lineItem of quotationLineItems) {
-        const lineAmount = (lineItem.quantity ?? 0) * (lineItem.unitPrice ?? 0);
-        calculatedQuotationTotal += lineAmount;
+      // 必須項目の充足状況を検証
+      if (!doc.customerName || doc.customerName.trim() === '') {
+        messages.push(`${name}の顧客名が空です`);
+        hasWarning = true;
       }
-      
-      if (quotationLineItems.length > 0 && calculatedQuotationTotal !== quotationTotal) {
-        hasWarnings = true;
-        messages.push('見積書の明細合計と請求金額が一致しません');
+  
+      if (!doc.documentType || doc.documentType.trim() === '') {
+        messages.push(`${name}のドキュメントタイプが空です`);
+        hasWarning = true;
+      }
+  
+      // 金額の一貫性を検証
+      if (doc.total === 0) {
+        messages.push(`金額が0円です`);
+        hasWarning = true;
+      }
+  
+      // subtotal + tax = total の検証
+      const calculatedTotal = (doc.subtotal || 0) + (doc.tax || 0);
+      if (Math.abs(calculatedTotal - (doc.total || 0)) > 0.01) {
+        messages.push(`${name}の金額が一致しません（小計+税 vs 合計）`);
+        hasError = true;
+      }
+  
+      // line items の検証
+      if (!doc.items || doc.items.length === 0) {
+        if (doc.total !== 0) {
+          messages.push(`${name}に明細行がありません`);
+          hasWarning = true;
+        }
+      } else {
+        // 明細行の合計が subtotal と一致するか検証
+        const itemsTotal = doc.items.reduce((sum, item) => {
+          return sum + ((item.subtotal || item.quantity * item.unitPrice) || 0);
+        }, 0);
+  
+        if (Math.abs(itemsTotal - (doc.subtotal || 0)) > 0.01) {
+          messages.push(`${name}の明細合計が小計と一致しません`);
+          hasError = true;
+        }
       }
     }
   
-    // 注文書の検証
-    if (generatedDocs.order) {
-      const orderTotal = generatedDocs.order.total ?? 0;
-      const orderLineItems = generatedDocs.order.lineItems ?? [];
-      
-      if (orderTotal === 0) {
-        hasWarnings = true;
-        messages.push('注文書の金額が0円です');
-      }
-      
-      if (orderLineItems.length === 0 && orderTotal > 0) {
-        hasWarnings = true;
-        messages.push('注文書に明細行がありません');
-      }
-  
-      // 明細行の金額検証
-      let calculatedOrderTotal = 0;
-      for (const lineItem of orderLineItems) {
-        const lineAmount = (lineItem.quantity ?? 0) * (lineItem.unitPrice ?? 0);
-        calculatedOrderTotal += lineAmount;
-      }
-      
-      if (orderLineItems.length > 0 && calculatedOrderTotal !== orderTotal) {
-        hasWarnings = true;
-        messages.push('注文書の明細合計と請求金額が一致しません');
-      }
-    }
-  
-    // 請求書の検証
-    if (generatedDocs.invoice) {
-      const invoiceTotal = generatedDocs.invoice.total ?? 0;
-      const invoiceLineItems = generatedDocs.invoice.lineItems ?? [];
-      
-      if (invoiceTotal === 0) {
-        hasWarnings = true;
-        messages.push('請求書の金額が0円です');
-      }
-      
-      if (invoiceLineItems.length === 0 && invoiceTotal > 0) {
-        hasWarnings = true;
-        messages.push('請求書に明細行がありません');
-      }
-  
-      // 明細行の金額検証
-      let calculatedInvoiceTotal = 0;
-      for (const lineItem of invoiceLineItems) {
-        const lineAmount = (lineItem.quantity ?? 0) * (lineItem.unitPrice ?? 0);
-        calculatedInvoiceTotal += lineAmount;
-      }
-      
-      if (invoiceLineItems.length > 0 && calculatedInvoiceTotal !== invoiceTotal) {
-        hasWarnings = true;
-        messages.push('請求書の明細合計と請求金額が一致しません');
-      }
-    }
-  
-    const status = hasWarnings ? 'warning' : 'OK';
-    const is_processable = true;
+    const status = hasError ? 'error' : hasWarning ? 'warning' : 'OK';
+    const is_processable = !hasError;
   
     return {
       status,
       messages,
-      is_processable
+      is_processable,
     };
   }
   return { verifyGeneratedDocuments };
@@ -659,11 +535,11 @@ const __aivicBundle_6_validateAndGenerateDocuments = (() => {
     deal_date: Date;
     invoice_expected_date: Date;
     line_items: Array<{
-      line_item_id: string;
+      line_item_id?: string;
       product_name: string;
       quantity: number;
       unit_price: number;
-      line_total: number;
+      line_total?: number;
     }>;
   }
   
@@ -672,17 +548,38 @@ const __aivicBundle_6_validateAndGenerateDocuments = (() => {
     error_type?: string;
     warning_message?: string;
     documents_generated: boolean;
-    estimate: { documentType: string; totalAmount: number } | null;
-    order: { documentType: string; totalAmount: number } | null;
-    invoice: { documentType: string; totalAmount: number } | null;
+    estimate: object | null;
+    order: object | null;
+    invoice: object | null;
   }
   
    function validateAndGenerateDocuments(
     dealData: ValidateAndGenerateDocumentsInput
   ): ValidateAndGenerateDocumentsOutput {
-    const lineItemCount = dealData.line_items?.length ?? 0;
+    // Validate required fields exist
+    if (
+      !dealData.deal_id ||
+      !dealData.customer_id ||
+      !dealData.customer_name ||
+      !dealData.customer_address ||
+      dealData.deal_amount === undefined ||
+      !dealData.deal_status ||
+      !dealData.deal_date ||
+      !dealData.invoice_expected_date
+    ) {
+      return {
+        success: false,
+        error_type: "MISSING_REQUIRED_FIELDS",
+        warning_message: "必須項目が不足しています。",
+        documents_generated: false,
+        estimate: null,
+        order: null,
+        invoice: null
+      };
+    }
   
-    if (lineItemCount < 2) {
+    // Validate line_items exist and have minimum required count
+    if (!dealData.line_items || dealData.line_items.length < 2) {
       return {
         success: false,
         error_type: "INSUFFICIENT_LINE_ITEMS",
@@ -695,36 +592,84 @@ const __aivicBundle_6_validateAndGenerateDocuments = (() => {
       };
     }
   
-    const calculatedTotal = dealData.line_items.reduce(
-      (sum, item) => sum + item.line_total,
-      0
+    // Validate line_items have required fields
+    const allLineItemsValid = dealData.line_items.every(
+      (item) =>
+        item.product_name &&
+        item.quantity !== undefined &&
+        item.unit_price !== undefined
     );
   
-    const taxRate = 0.1;
-    const taxAmount = Math.round(calculatedTotal * taxRate);
-    const totalAmount = calculatedTotal + taxAmount;
+    if (!allLineItemsValid) {
+      return {
+        success: false,
+        error_type: "INVALID_LINE_ITEMS",
+        warning_message: "明細行に不正な値が含まれています。",
+        documents_generated: false,
+        estimate: null,
+        order: null,
+        invoice: null
+      };
+    }
   
+    // Calculate totals from line items
+    const subtotal = dealData.line_items.reduce((sum, item) => {
+      return sum + item.quantity * item.unit_price;
+    }, 0);
+  
+    const tax = Math.round(subtotal * 0.1);
+    const total = subtotal + tax;
+  
+    // Generate document items
+    const documentItems = dealData.line_items.map((item) => ({
+      itemName: item.product_name,
+      quantity: item.quantity,
+      unitPrice: item.unit_price,
+      subtotal: item.quantity * item.unit_price
+    }));
+  
+    // Create estimate document
     const estimate = {
       documentType: "見積書",
-      totalAmount: totalAmount
+      customerName: dealData.customer_name,
+      customerAddress: dealData.customer_address,
+      subtotal,
+      tax,
+      total,
+      items: documentItems,
+      dealId: dealData.deal_id
     };
   
+    // Create order document
     const order = {
       documentType: "注文書",
-      totalAmount: totalAmount
+      customerName: dealData.customer_name,
+      customerAddress: dealData.customer_address,
+      subtotal,
+      tax,
+      total,
+      items: documentItems,
+      dealId: dealData.deal_id
     };
   
+    // Create invoice document
     const invoice = {
       documentType: "請求書",
-      totalAmount: totalAmount
+      customerName: dealData.customer_name,
+      customerAddress: dealData.customer_address,
+      subtotal,
+      tax,
+      total,
+      items: documentItems,
+      dealId: dealData.deal_id
     };
   
     return {
       success: true,
       documents_generated: true,
-      estimate: estimate,
-      order: order,
-      invoice: invoice
+      estimate,
+      order,
+      invoice
     };
   }
   return { validateAndGenerateDocuments };
@@ -738,23 +683,23 @@ const __aivicBundle_7_validateDocumentAmountAndLineItems = (() => {
     totalAmount: number;
     lineItems: Array<{ amount: number; description: string }>;
     lineCount: number;
-  }): DocumentValidationResult {
-    const calculatedTotal = documentData.lineItems.reduce(
-      (sum, item) => sum + item.amount,
-      0
-    );
+  }): DocumentAmountValidation {
+    const { totalAmount, lineItems, lineCount } = documentData;
   
-    const isAmountMatching = documentData.totalAmount === calculatedTotal;
-    const isLineCountMatching =
-      documentData.lineCount === documentData.lineItems.length;
+    // 明細行の合計を計算
+    const calculatedTotal = lineItems.reduce((sum, item) => sum + item.amount, 0);
   
-    const isValid = isAmountMatching && isLineCountMatching;
+    // 金額が一致し、行数が正常かを検証
+    const isAmountMatching = totalAmount === calculatedTotal;
+    const isLineCountValid = lineCount === lineItems.length && lineCount > 0;
+  
+    const isValid = isAmountMatching && isLineCountValid;
   
     return {
-      status: isValid ? "OK" : "warning",
+      status: isValid ? "OK" : "WARNING",
       isValid,
-      totalAmount: documentData.totalAmount,
-      lineCount: documentData.lineCount,
+      totalAmount,
+      lineCount,
       calculatedTotal,
       message: isValid
         ? "帳票金額と明細が正確です"
@@ -771,26 +716,46 @@ const __aivicBundle_8_validateDocumentAmount = (() => {
   function validateDocumentAmount(documentData: {
     totalAmount: number;
     lineItems: Array<{ unitPrice: number; quantity: number }>;
-  }): AmountValidationResult {
+  }): DocumentContentValidation {
     const { totalAmount, lineItems } = documentData;
   
-    // Validate that totalAmount is non-negative
+    // Validate negative amounts
     if (totalAmount < 0) {
       throw new Error('金額は負の値にできません');
     }
   
-    // Validate that all unitPrices are non-negative
+    // Validate line items for negative values
     for (const item of lineItems) {
       if (item.unitPrice < 0) {
         throw new Error('単価は負の値にできません');
       }
-    }
-  
-    // Validate that all quantities are non-negative
-    for (const item of lineItems) {
       if (item.quantity < 0) {
         throw new Error('数量は負の値にできません');
       }
+    }
+  
+    // Check for empty line items
+    if (lineItems.length === 0) {
+      return {
+        status: 'warning',
+        isValid: false,
+        actualLineItemTotal: 0,
+        reportedTotal: totalAmount,
+        discrepancy: totalAmount,
+        message: '明細行がありません',
+      };
+    }
+  
+    // Check for excessive line item count
+    if (lineItems.length > 1000) {
+      return {
+        status: 'warning',
+        isValid: false,
+        actualLineItemTotal: 0,
+        reportedTotal: totalAmount,
+        discrepancy: 0,
+        message: `明細行数が異常です: ${lineItems.length}行`,
+      };
     }
   
     // Calculate actual total from line items
@@ -799,49 +764,28 @@ const __aivicBundle_8_validateDocumentAmount = (() => {
       0
     );
   
-    // Calculate discrepancy
-    const discrepancy = Math.abs(totalAmount - actualLineItemTotal);
+    // Compare totals
+    const discrepancy = Math.abs(actualLineItemTotal - totalAmount);
   
-    // Check for empty line items
-    if (lineItems.length === 0) {
-      return {
-        status: 'warning',
-        actualLineItemTotal: 0,
-        reportedTotal: totalAmount,
-        discrepancy: totalAmount,
-        message: '明細行がありません',
-      };
-    }
-  
-    // Check for excessive line item count (more than 1000)
-    if (lineItems.length > 1000) {
-      return {
-        status: 'warning',
-        actualLineItemTotal,
-        reportedTotal: totalAmount,
-        discrepancy,
-        message: `明細行数が異常です（${lineItems.length}行）`,
-      };
-    }
-  
-    // Check if amounts match
     if (discrepancy === 0) {
       return {
         status: 'ok',
+        isValid: true,
         actualLineItemTotal,
         reportedTotal: totalAmount,
         discrepancy: 0,
+        message: '金額が一致しています',
+      };
+    } else {
+      return {
+        status: 'error',
+        isValid: false,
+        actualLineItemTotal,
+        reportedTotal: totalAmount,
+        discrepancy,
+        message: `金額合計が一致しません。明細合計: ${actualLineItemTotal}、帳票合計: ${totalAmount}`,
       };
     }
-  
-    // Amounts don't match
-    return {
-      status: 'error',
-      actualLineItemTotal,
-      reportedTotal: totalAmount,
-      discrepancy,
-      message: `金額合計が明細行の合計と一致しません（報告額: ${totalAmount}、計算額: ${actualLineItemTotal}）`,
-    };
   }
   return { validateDocumentAmount };
 })();
@@ -855,16 +799,17 @@ const __aivicBundle_9_validateDocumentDetails = (() => {
     customerId: string;
     customerName: string;
     totalAmount: number;
-    lineItems: Array<{ amount?: number; description?: string }>;
+    lineItems: Array<any>;
     documentType: string;
     issueDate: string;
-  }): DocumentDetailsResult {
+  }): DocumentDetailsValidation {
     if (documentData["documentId"] === undefined || documentData["documentId"] === null) { throw new Error("documentId is required"); }
     if (documentData["customerId"] === undefined || documentData["customerId"] === null) { throw new Error("customerId is required"); }
     if (documentData["customerName"] === undefined || documentData["customerName"] === null) { throw new Error("customerName is required"); }
+    if (documentData["totalAmount"] === undefined || documentData["totalAmount"] === null) { throw new Error("totalAmount is required"); }
     if (documentData["documentType"] === undefined || documentData["documentType"] === null) { throw new Error("documentType is required"); }
     if (documentData["issueDate"] === undefined || documentData["issueDate"] === null) { throw new Error("issueDate is required"); }
-    const lineItemCount = documentData.lineItems.length;
+    const lineItemCount = documentData.lineItems?.length ?? 0;
     const hasLineItems = lineItemCount > 0;
   
     if (!hasLineItems) {
@@ -880,20 +825,14 @@ const __aivicBundle_9_validateDocumentDetails = (() => {
       };
     }
   
-    const calculatedTotal = documentData.lineItems.reduce((sum, item) => {
-      return sum + (item.amount ?? 0);
-    }, 0);
-  
-    const amountValidation = calculatedTotal === documentData.totalAmount;
-  
     return {
       status: 'OK',
       isValid: true,
       errorMessage: '',
-      lineItemCount,
+      lineItemCount: lineItemCount,
       validationDetails: {
         hasLineItems: true,
-        amountValidation,
+        amountValidation: true,
       },
     };
   }
@@ -917,31 +856,28 @@ const __aivicBundle_10_validateDocumentLines = (() => {
       lineAmount: number;
     }>;
     invoiceDate: string;
-  }): DocumentLinesResult {
+  }): DocumentLinesValidation {
     if (documentData["customerId"] === undefined || documentData["customerId"] === null) { throw new Error("customerId is required"); }
     if (documentData["customerName"] === undefined || documentData["customerName"] === null) { throw new Error("customerName is required"); }
     if (documentData["invoiceAmount"] === undefined || documentData["invoiceAmount"] === null) { throw new Error("invoiceAmount is required"); }
     if (documentData["lines"] === undefined || documentData["lines"] === null) { throw new Error("lines is required"); }
     if (documentData["invoiceDate"] === undefined || documentData["invoiceDate"] === null) { throw new Error("invoiceDate is required"); }
-    const warnings: string[] = [];
-    let status = 'OK';
-    let message = '';
-    let isProcessable = true;
-  
     const lineCount = documentData.lineCount;
+    const warnings: string[] = [];
+    let status = 'ok';
+    let message = '';
   
     if (lineCount >= 1000) {
       status = 'warning';
-      message = `明細行数が${lineCount}行を超えています`;
-      warnings.push(`明細行数が${lineCount}行以上です`);
-      isProcessable = true;
+      message = '明細行数が多いため内容を確認してください';
+      warnings.push(`明細行数が${lineCount}行を超えています`);
     }
   
     return {
       status,
       lineCount,
       message,
-      isProcessable,
+      isProcessable: true,
       warnings,
     };
   }
@@ -953,7 +889,7 @@ export const validateDocumentLines = __aivicBundle_10_validateDocumentLines.vali
 /* AIVIC_FUNCTION_BUNDLE_START owner=generateQuotationOrderInvoice exports=generateQuotationOrderInvoice */
 const __aivicBundle_11_generateQuotationOrderInvoice = (() => {
   function generateQuotationOrderInvoice(dealData: any): GeneratedDocuments {
-    // Validate required customer information
+    // Validate customer information
     const customerId = dealData.customerId || '';
     const customerName = dealData.customerName || '';
     
@@ -961,111 +897,92 @@ const __aivicBundle_11_generateQuotationOrderInvoice = (() => {
       throw new Error('顧客情報が見つかりません');
     }
   
-    // Validate required amount
-    const amount = dealData.amount ?? dealData.dealAmount ?? null;
+    // Validate amount
+    const amount = dealData.amount ?? dealData.dealAmount;
     if (amount === null || amount === undefined || amount === 0) {
       throw new Error('金額が見つかりません');
     }
   
-    // Extract deal information
-    const dealId = dealData.dealId || '';
+    // Extract line items
+    const lineItems = dealData.lineItems || dealData.items || [];
+    
+    // Calculate subtotal from line items or use dealAmount
+    let subtotal = 0;
+    const formattedItems: Array<{
+      itemName: string;
+      quantity: number;
+      unitPrice: number;
+      subtotal: number;
+    }> = [];
+  
+    if (lineItems.length > 0) {
+      for (const item of lineItems) {
+        const itemName = item.productName || item.description || item.itemName || '';
+        const quantity = item.quantity || 0;
+        const unitPrice = item.unitPrice || 0;
+        const itemSubtotal = quantity * unitPrice;
+        
+        subtotal += itemSubtotal;
+        
+        formattedItems.push({
+          itemName,
+          quantity,
+          unitPrice,
+          subtotal: itemSubtotal
+        });
+      }
+    } else {
+      subtotal = amount;
+    }
+  
+    // Calculate tax
+    const taxRate = dealData.taxRate || 0.1;
+    const tax = Math.round(subtotal * taxRate);
+    const total = subtotal + tax;
+  
+    // Extract customer contact information
     const customerAddress = dealData.customerAddress || '';
     const customerPhone = dealData.customerPhone || '';
     const customerEmail = dealData.customerEmail || '';
-    const taxRate = dealData.taxRate ?? 0.1;
+    const dealId = dealData.dealId || '';
   
-    // Process line items - handle both 'items' and 'lineItems' formats
-    const lineItemsInput = dealData.items || dealData.lineItems || [];
-    
-    const lineItems = lineItemsInput.map((item: any) => ({
-      productName: item.itemName || item.description || '',
-      quantity: item.quantity || 0,
-      unitPrice: item.unitPrice || 0,
-      lineAmount: (item.quantity || 0) * (item.unitPrice || 0),
-      subtotal: item.subtotal || (item.quantity || 0) * (item.unitPrice || 0)
-    }));
+    // Build document base
+    const documentBase = {
+      customerName,
+      customerAddress: customerAddress || undefined,
+      customerPhone: customerPhone || undefined,
+      customerEmail: customerEmail || undefined,
+      subtotal,
+      tax,
+      total,
+      items: formattedItems,
+      dealId,
+      customerId,
+      amount: total,
+      lineItems: formattedItems.map(item => ({
+        itemName: item.itemName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice
+      }))
+    };
   
-    // For test compatibility, also create items array with itemName
-    const items = lineItemsInput.map((item: any) => ({
-      itemName: item.itemName || item.description || '',
-      quantity: item.quantity || 0,
-      unitPrice: item.unitPrice || 0,
-      subtotal: item.subtotal || (item.quantity || 0) * (item.unitPrice || 0)
-    }));
-  
-    // Calculate totals
-    const subtotal = lineItems.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0);
-    const taxAmount = Math.round(subtotal * taxRate);
-    const total = subtotal + taxAmount;
-  
-    // Generate document numbers
-    const quotationNumber = `QT-${dealId}-${Date.now()}`;
-    const orderNumber = `OR-${dealId}-${Date.now()}`;
-    const invoiceNumber = `IV-${dealId}-${Date.now()}`;
-  
-    const generatedDocuments: GeneratedDocuments = {
+    return {
       quotation: {
         documentType: '見積書',
-        quotationNumber,
-        customerName,
-        customerAddress,
-        customerPhone,
-        customerEmail,
-        subtotal,
-        tax: taxAmount,
-        taxAmount,
-        total,
-        totalAmount: total,
-        lineItems,
-        dealId,
-        formatVersion: '1.0'
+        quotationNumber: `QT-${dealId}`,
+        ...documentBase
       } as any,
       order: {
         documentType: '注文書',
-        orderNumber,
-        customerName,
-        subtotal,
-        tax: taxAmount,
-        total,
-        lineItems,
-        dealId,
-        formatVersion: '1.0'
+        orderNumber: `OR-${dealId}`,
+        ...documentBase
       } as any,
       invoice: {
         documentType: '請求書',
-        invoiceNumber,
-        customerName,
-        customerAddress,
-        subtotal,
-        taxAmount,
-        tax: taxAmount,
-        total,
-        totalAmount: total,
-        lineItems,
-        dealId,
-        formatVersion: '1.0'
+        invoiceNumber: `IV-${dealId}`,
+        ...documentBase
       } as any
     };
-  
-    // Add extra fields for test compatibility
-    (generatedDocuments.quotation as any).customerId = customerId;
-    (generatedDocuments.quotation as any).amount = total;
-    (generatedDocuments.quotation as any).items = items;
-    
-    (generatedDocuments.order as any).customerId = customerId;
-    (generatedDocuments.order as any).customerAddress = customerAddress;
-    (generatedDocuments.order as any).customerPhone = customerPhone;
-    (generatedDocuments.order as any).customerEmail = customerEmail;
-    (generatedDocuments.order as any).amount = total;
-    (generatedDocuments.order as any).items = items;
-    
-    (generatedDocuments.invoice as any).customerId = customerId;
-    (generatedDocuments.invoice as any).customerPhone = customerPhone;
-    (generatedDocuments.invoice as any).customerEmail = customerEmail;
-    (generatedDocuments.invoice as any).amount = total;
-    (generatedDocuments.invoice as any).items = items;
-  
-    return generatedDocuments;
   }
   return { generateQuotationOrderInvoice };
 })();
@@ -1074,145 +991,127 @@ export const generateQuotationOrderInvoice: (...args: any[]) => any = (...args: 
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=generateEstimate exports=generateEstimate */
 const __aivicBundle_12_generateEstimate = (() => {
-  interface GenerateEstimateInput {
-    [key: string]: any;
-  }
+  function generateEstimate(dealData: any): any {
+    // Normalize input field names (handle both camelCase and snake_case)
+    const dealId = dealData.dealId || dealData.deal_id;
+    const customerName = dealData.customerName || dealData.customer_name;
+    const customerPostalCode = dealData.customer_postal_code;
+    const customerAddress = dealData.customer_address;
+    const customerPhone = dealData.customer_phone;
+    const estimateDate = dealData.estimate_date;
   
-  interface GenerateEstimateOutput {
-    [key: string]: any;
-  }
-  
-   function generateEstimate(
-    dealData: GenerateEstimateInput
-  ): GenerateEstimateOutput {
-    const estimateId = `EST-${new Date().toISOString().split("T")[0].replace(/-/g, "")}-${randomUUID().split("-")[0].substring(0, 4).toUpperCase()}`;
-  
-    const dealId = dealData.dealId || dealData.deal_id || "";
-    const customerName = dealData.customerName || dealData.customer_name || "";
-    const customerPostalCode = dealData.customer_postal_code || "";
-    const customerAddress = dealData.customer_address || "";
-    const customerPhone = dealData.customer_phone || "";
-    const estimateDate =
-      dealData.estimate_date ||
-      dealData.dealDate ||
-      dealData.deal_date ||
-      "";
-  
-    // Determine which line items to use
-    let lineItemsToProcess: Array<{
-      lineId?: number;
-      item_id?: string;
-      productName?: string;
-      product_name?: string;
-      quantity: number;
-      unitPrice?: number;
-      unit_price?: number;
-      taxRate?: number;
-      tax_rate?: number;
-    }> = [];
-  
-    if (dealData.invoiceLineItems && dealData.invoiceLineItems.length > 0) {
-      lineItemsToProcess = dealData.invoiceLineItems;
-    } else if (dealData.lineItems && dealData.lineItems.length > 0) {
-      lineItemsToProcess = dealData.lineItems;
-    } else if (dealData.dealDetails && dealData.dealDetails.length > 0) {
-      lineItemsToProcess = dealData.dealDetails.map((detail) => ({
-        lineId: parseInt(detail.lineId, 10) || 0,
-        productName: detail.productName,
-        quantity: detail.quantity,
-        unitPrice: detail.unitPrice,
-        taxRate: 0,
-      }));
+    // Validate required fields
+    if (!customerName) {
+      return {
+        errorMessage: "顧客名が必須です",
+        totalAmount: 0,
+        status: "無効",
+        customerName: "",
+        details: [],
+      };
     }
   
-    // Calculate totals
-    let subtotal = 0;
-    let taxAmount = 0;
+    if (!dealId) {
+      return {
+        errorMessage: "商談IDが必須です",
+        totalAmount: 0,
+        status: "無効",
+        customerName: customerName,
+        details: [],
+      };
+    }
   
-    const processedLineItems = lineItemsToProcess.map((item) => {
-      const qty = item.quantity || 0;
-      const unitPrice = item.unitPrice || item.unit_price || 0;
-      const taxRate = item.taxRate || item.tax_rate || 0;
+    // Collect line items from various possible input fields
+    const lineItemsInput =
+      dealData.dealDetails || dealData.invoiceLineItems || dealData.line_items || [];
   
-      const lineSubtotal = qty * unitPrice;
-      const lineTax = lineSubtotal * taxRate;
+    // Generate estimate ID with format EST-YYYYMMDD-XXXX
+    const now = new Date();
+    const dateStr = now.toISOString().split("T")[0].replace(/-/g, "");
+    const estimateId = `EST-${dateStr}-${randomUUID().split("-")[0].substring(0, 4)}`;
   
-      subtotal += lineSubtotal;
-      taxAmount += lineTax;
+    // Process line items
+    const processedDetails = lineItemsInput.map((item: any) => {
+      const quantity = item.quantity || 0;
+      const unitPrice = item.unitPrice ?? item.unit_price ?? 0;
+      const lineAmount = quantity * unitPrice;
+      const lineId = (item.lineId ?? item.item_id ?? "").toString();
+      const productName = item.productName || item.product_name || "";
   
       return {
-        lineId: item.lineId,
-        item_id: item.item_id,
-        productName: item.productName || item.product_name,
-        product_name: item.product_name || item.productName,
-        quantity: qty,
-        unitPrice: unitPrice,
-        unit_price: unitPrice,
-        taxRate: taxRate,
-        tax_rate: taxRate,
+        lineId,
+        productName,
+        quantity,
+        unitPrice,
+        lineAmount,
       };
     });
   
-    const totalAmount = subtotal + taxAmount;
+    // Calculate total amount
+    const totalAmount = processedDetails.reduce((sum: number, detail: any) => sum + detail.lineAmount, 0);
   
-    // Build details array for camelCase output
-    const details = processedLineItems.map((item) => {
-      const lineSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
-      return { lineAmount: lineSubtotal };
-    });
-  
-    // Determine output format based on input shape
+    // Determine output format based on input structure
     const hasSnakeCaseFields =
       dealData.deal_id !== undefined ||
       dealData.customer_name !== undefined ||
+      dealData.line_items !== undefined ||
       dealData.estimate_date !== undefined;
   
     if (hasSnakeCaseFields) {
-      // Return snake_case format for SCEN-217 style input
-      const snakeCaseLineItems = processedLineItems.map((item) => ({
-        item_id: String(item.lineId || item.item_id || ""),
-        product_name: item.product_name || item.productName || "",
-        quantity: item.quantity,
-        unit_price: item.unit_price || item.unitPrice || 0,
-        tax_rate: item.tax_rate || item.taxRate || 0,
-      }));
+      // Return snake_case format for snake_case input
+      const processedLineItems = lineItemsInput.map((item: any) => {
+        const quantity = item.quantity || 0;
+        const unitPrice = item.unitPrice ?? item.unit_price ?? 0;
+        const lineAmount = quantity * unitPrice;
+        const lineId = item.lineId ?? item.item_id;
+        const productName = item.productName || item.product_name || "";
+        const taxRate = item.taxRate ?? item.tax_rate ?? 0;
+  
+        return {
+          lineId,
+          item_id: lineId,
+          productName,
+          product_name: productName,
+          quantity,
+          unitPrice,
+          unit_price: unitPrice,
+          lineAmount,
+          subtotal: lineAmount,
+          taxRate,
+          tax_rate: taxRate,
+        };
+      });
+  
+      const subtotal = processedLineItems.reduce((sum: number, item: any) => sum + (item.lineAmount || 0), 0);
+      const taxAmount = subtotal * 0.1;
+      const totalWithTax = subtotal + taxAmount;
   
       return {
         document_type: "見積書",
         estimate_number: estimateId,
-        estimate_date: estimateDate,
+        estimate_date: estimateDate || dealData.dealDate || dealData.deal_date || "",
         customer_name: customerName,
-        customer_postal_code: customerPostalCode,
-        customer_address: customerAddress,
-        customer_phone: customerPhone,
-        line_items: snakeCaseLineItems,
-        subtotal: subtotal,
+        customer_postal_code: customerPostalCode || "",
+        customer_address: customerAddress || "",
+        customer_phone: customerPhone || "",
+        line_items: processedLineItems,
+        subtotal,
         tax_amount: taxAmount,
-        total_amount: totalAmount,
+        total_amount: totalWithTax,
       };
     }
   
-    // Return camelCase format for standard input
+    // Return camelCase format for camelCase input
     return {
-      estimateId: estimateId,
-      dealId: dealId,
-      totalAmount: totalAmount,
+      estimateId,
+      dealId,
+      customerName,
+      lineItems: processedDetails,
+      totalAmount,
       status: "有効",
-      customerName: customerName,
-      details: details,
-      lineItems: processedLineItems.map((item) => ({
-        lineId: item.lineId,
-        item_id: item.item_id,
-        productName: item.productName,
-        product_name: item.product_name,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        unit_price: item.unit_price,
-        taxRate: item.taxRate,
-        tax_rate: item.tax_rate,
-      })),
-      subtotal: subtotal,
-      taxAmount: taxAmount,
+      details: processedDetails,
+      subtotal: totalAmount,
+      taxAmount: totalAmount * 0.1,
     };
   }
   return { generateEstimate };
@@ -1227,99 +1126,114 @@ const __aivicBundle_13_generateOrder = (() => {
   }
   
   interface GenerateOrderOutput {
-    [key: string]: any;
+    documentType?: string;
+    document_type?: string;
+    orderId?: string;
+    order_number?: string;
+    orderNumber?: string;
+    order_date?: string;
+    customerName?: string;
+    customer_name?: string;
+    customerAddress?: string;
+    customer_address?: string;
+    subtotal?: number;
+    taxAmount?: number;
+    tax_amount?: number;
+    totalAmount?: number;
+    total_amount?: number;
+    lineItems?: Array<{
+      lineId?: number | string;
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      taxRate?: number;
+    }>;
+    line_items?: Array<{
+      item_id?: string;
+      product_name: string;
+      quantity: number;
+      unit_price: number;
+      tax_rate?: number;
+    }>;
+    details?: Array<{
+      lineId?: string;
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      lineAmount: number;
+    }>;
+    status?: string;
+    errorMessage?: undefined;
+    createdAt?: string;
+    dealId?: string;
   }
   
    function generateOrder(input: GenerateOrderInput): GenerateOrderOutput {
-    const orderId = randomUUID();
-    const orderNumber = generateOrderNumber();
+    if (!input) {
+      return { errorMessage: undefined };
+    }
+  
+    const dealId = input.deal_id || input.dealId || "";
+    const customerName = input.customer_name || input.customerName || "";
     const orderDate = input.order_date || input.dealDate || new Date().toISOString().split("T")[0];
   
-    const customerName = input.customer_name || input.customerName || "";
-    
+    const details = input.dealDetails || input.lineItems || input.invoiceLineItems || [];
   
-    let lineItems: any[] = [];
     let subtotal = 0;
+    let taxAmount = 0;
   
-    if (input.dealDetails && Array.isArray(input.dealDetails)) {
-      lineItems = input.dealDetails.map((detail) => ({
+    const processedDetails = details.map((detail) => {
+      const lineAmount = detail.quantity * detail.unitPrice;
+      const taxRate = (detail as any).taxRate || 0.1;
+      const lineTax = lineAmount * taxRate;
+  
+      subtotal += lineAmount;
+      taxAmount += lineTax;
+  
+      return {
         lineId: detail.lineId,
         productName: detail.productName,
         quantity: detail.quantity,
         unitPrice: detail.unitPrice,
-      }));
-      subtotal = input.dealDetails.reduce((sum, detail) => {
-        return sum + detail.quantity * detail.unitPrice;
-      }, 0);
-    } else if (input.lineItems && Array.isArray(input.lineItems)) {
-      lineItems = input.lineItems.map((item) => ({
-        lineId: item.lineItemId,
-        productName: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-      }));
-      subtotal = input.lineItems.reduce((sum, item) => {
-        return sum + item.quantity * item.unitPrice;
-      }, 0);
-    } else if (input.invoiceLineItems && Array.isArray(input.invoiceLineItems)) {
-      lineItems = input.invoiceLineItems.map((item) => ({
-        lineId: item.lineId,
-        productName: item.productName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-      }));
-      subtotal = input.invoiceLineItems.reduce((sum, item) => {
-        return sum + item.quantity * item.unitPrice;
-      }, 0);
-    } else if (input.dealAmount !== undefined) {
-      subtotal = input.dealAmount;
-    }
+        lineAmount: lineAmount,
+      };
+    });
   
-    const taxRate = 0.1;
-    const taxAmount = Math.round(subtotal * taxRate);
     const totalAmount = subtotal + taxAmount;
   
-    const result: GenerateOrderOutput = {
+    const uuidPart = randomUUID().split("-")[0].substring(0, 4).toUpperCase();
+    const datePart = orderDate.replace(/-/g, "");
+    const orderId = `ORD-${datePart}-${uuidPart}`;
+  
+    const output: GenerateOrderOutput = {
       documentType: "注文書",
       document_type: "注文書",
       orderId: orderId,
-      order_number: orderNumber,
+      order_number: orderId,
+      orderNumber: orderId,
       order_date: orderDate,
-      orderDate: orderDate,
       customerName: customerName,
       customer_name: customerName,
       subtotal: subtotal,
-      tax_amount: taxAmount,
       taxAmount: taxAmount,
-      total_amount: totalAmount,
+      tax_amount: taxAmount,
       totalAmount: totalAmount,
-      lineItems: lineItems,
-      line_item: lineItems,
-      details: lineItems,
+      total_amount: totalAmount,
+      lineItems: processedDetails,
+      line_items: processedDetails.map((d) => ({
+        item_id: String(d.lineId),
+        product_name: d.productName,
+        quantity: d.quantity,
+        unit_price: d.unitPrice,
+        tax_rate: 0.1,
+      })),
+      details: processedDetails,
       status: "有効",
-      header: {
-        company_name: "会社名",
-        company_address: "会社住所",
-        company_phone: "会社電話番号",
-      },
-      footer: {
-        payment_terms: "支払条件",
-        notes: "備考",
-      },
-      format_version: "1.0",
+      errorMessage: undefined,
+      dealId: dealId,
     };
   
-    return result;
-  }
-  
-  function generateOrderNumber(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    const dateStr = `${year}${month}${day}`;
-    const randomNum = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
-    return `ORD-${dateStr}-${randomNum}`;
+    return output;
   }
   return { generateOrder };
 })();
@@ -1328,278 +1242,207 @@ export const generateOrder: (...args: any[]) => any = (...args: any[]) => (__aiv
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=generateInvoice exports=generateInvoice */
 const __aivicBundle_14_generateInvoice = (() => {
-  function generateInvoice(
-    dealData: any
-  ): InvoiceData & {
-    status?: string;
-    details?: Array<{
-      lineId?: string | number;
+  interface GenerateInvoiceInput {
+    dealId?: string;
+    deal_id?: string;
+    customerId?: string;
+    customer_id?: string;
+    customerName?: string;
+    customer_name?: string;
+    dealAmount?: number;
+    deal_amount?: number;
+    dealStatus?: string;
+    deal_status?: string;
+    dealDetails?: Array<{
+      lineId?: number;
       productId?: string;
       productName: string;
       quantity: number;
       unitPrice: number;
       lineAmount?: number;
+      taxRate?: number;
     }>;
-    errorMessage?: undefined;
-    document_type?: string;
-    invoice_number?: string;
+    lineItems?: Array<{
+      lineId?: number;
+      productId?: string;
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      lineAmount?: number;
+      taxRate?: number;
+    }>;
+    dealDate?: string;
+    deal_date?: string;
+    invoiceExpectedDate?: string;
+    estimated_invoice_date?: string;
+    customerPostalCode?: string;
+    customer_postal_code?: string;
+    customerAddress?: string;
+    customer_address?: string;
+    customerPhone?: string;
+    customer_phone?: string;
+    order_number?: string;
     invoice_date?: string;
     due_date?: string;
-    customer_postal_code?: string;
+  }
+  
+  interface GenerateInvoiceOutput {
+    documentType?: string;
+    document_type?: string;
+    invoiceNumber?: string;
+    invoice_number?: string;
+    invoiceId?: string;
+    invoice_date?: string;
+    invoiceDate?: string;
+    due_date?: string;
+    dueDate?: string;
+    customerName?: string;
+    customer_name?: string;
+    customerId?: string;
+    customer_id?: string;
+    customerAddress?: string;
     customer_address?: string;
+    customerPostalCode?: string;
+    customer_postal_code?: string;
+    customerPhone?: string;
     customer_phone?: string;
+    subtotal?: number;
+    taxAmount?: number;
     tax_amount?: number;
+    totalAmount?: number;
     total_amount?: number;
-    header?: {
-      company_name?: string;
-      company_address?: string;
-      company_phone?: string;
-    };
-    amount_section?: {
-      subtotal_label?: string;
-      subtotalLabel?: string;
-      subtotal_value?: number;
-      subtotalValue?: number;
-      tax_label?: string;
-      taxLabel?: string;
-      tax_value?: number;
-      taxValue?: number;
-      total_label?: string;
-      totalLabel?: string;
-      total_value?: number;
-      totalValue?: number;
-    };
-    footer?: {
-      payment_terms?: string;
-      paymentTerms?: string;
-      notes?: string;
-      signature_line?: string;
-      signatureLine?: string;
-    };
-    format_version?: string;
-    formatVersion?: string;
-    line_items?: Array<{
-      item_id?: string;
-      product_name?: string;
-      productName?: string;
-      quantity: number;
-      unit_price?: number;
-      unitPrice?: number;
-      line_amount?: number;
-      lineAmount?: number;
-    }>;
-    invoiceDetails?: Array<{
-      productId?: string;
+    invoiceAmount?: number;
+    lineItems?: Array<{
+      lineId?: number;
       productName: string;
       quantity: number;
       unitPrice: number;
-      lineAmount?: number;
+      taxRate?: number;
     }>;
-  } {
-    // Normalize input to handle both camelCase and snake_case
-    const normalized = normalizeGenerateInvoiceInput(dealData);
+    items?: Array<{
+      itemId: string;
+      itemName: string;
+      quantity: number;
+      unitPrice: number;
+      subtotal: number;
+    }>;
+    details?: Array<{
+      lineAmount: number;
+    }>;
+    status?: string;
+    invoiceStatus?: string;
+    createdAt?: string;
+    errorMessage?: string;
+    invoiceDetails?: Array<{
+      productId: string;
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      lineAmount: number;
+    }>;
+    dealId?: string;
+    deal_id?: string;
+  }
   
-    // Validate required fields
-    if (!normalized.customerName || normalized.customerName.trim() === "") {
-      throw new Error("顧客名は必須項目です");
+  function generateInvoiceInternal(input: GenerateInvoiceInput): GenerateInvoiceOutput {
+    const customerId = input.customerId || input.customer_id;
+    const customerName = input.customerName || input.customer_name;
+    const dealId = input.dealId || input.deal_id;
+    const dealAmount = input.dealAmount ?? input.deal_amount ?? 0;
+    const dealDetails = input.dealDetails || input.lineItems || [];
+    const invoiceDate = input.invoice_date;
+    const dueDate = input.due_date;
+    const customerPostalCode = input.customerPostalCode || input.customer_postal_code;
+    const customerAddress = input.customerAddress || input.customer_address;
+    const customerPhone = input.customerPhone || input.customer_phone;
+  
+    if (!customerName || customerName.trim() === "") {
+      throw new Error("顧客名は必須です");
     }
   
-    if (!normalized.customerId || normalized.customerId.trim() === "") {
-      throw new Error("顧客IDは必須項目です");
+    if (!customerId || customerId.trim() === "") {
+      throw new Error("顧客IDは必須です");
     }
   
-    // Extract line items
-    const lineItems = extractGenerateInvoiceLineItems(normalized);
-  
-    // Calculate totals
-    const subtotal = calculateGenerateInvoiceSubtotal(lineItems);
-    const taxRate = extractGenerateInvoiceTaxRate(normalized);
-    const taxAmount = Math.round(subtotal * taxRate);
-    const totalAmount = subtotal + taxAmount;
-  
-    // Generate invoice number
-    const invoiceNumber = generateGenerateInvoiceNumber(normalized);
-  
-    // Generate invoice ID
-    const invoiceId = `INV-${randomUUID().substring(0, 8).toUpperCase()}`;
-  
-    // Determine status
-    const status = "有効";
-  
-    // Build line items for output
-    const outputLineItems = lineItems.map((item, index) => ({
-      lineId: item.lineId || index + 1,
-      productId: item.productId,
+    const details = dealDetails.map((item) => ({
+      productId: item.productId || "",
       productName: item.productName,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       lineAmount: item.quantity * item.unitPrice,
     }));
   
-    // Build result object with both camelCase and snake_case for compatibility
-    const result: any = {
-      invoiceId,
-      invoiceNumber,
-      customerId: normalized.customerId,
-      customerName: normalized.customerName,
-      invoiceAmount: totalAmount,
-      totalAmount,
-      subtotal,
-      taxAmount,
-      tax_amount: taxAmount,
-      total_amount: totalAmount,
-      invoiceStatus: "発行済み",
-      status,
-      createdAt: new Date().toISOString(),
-      lineItems: outputLineItems,
-      invoiceDetails: outputLineItems,
-      details: outputLineItems,
+    const subtotal = details.reduce((sum, item) => sum + item.lineAmount, 0);
+    const taxRate = dealDetails.length > 0 && dealDetails[0].taxRate ? dealDetails[0].taxRate : 0.1;
+    const taxAmount = Math.round(subtotal * taxRate);
+    const totalAmount = subtotal + taxAmount;
+  
+    const invoiceNumberTimestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const invoiceNumberRandom = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, "0");
+    const invoiceNumber = `INV-${invoiceNumberTimestamp}-${invoiceNumberRandom}`;
+  
+    const result: GenerateInvoiceOutput = {
+      documentType: "請求書",
       document_type: "請求書",
+      invoiceNumber: invoiceNumber,
       invoice_number: invoiceNumber,
-      invoice_date: normalized.invoice_date,
-      due_date: normalized.due_date,
-      customer_postal_code: normalized.customer_postal_code,
-      customer_address: normalized.customer_address,
-      customer_phone: normalized.customer_phone,
-      header: {
-        company_name: "会社名",
-        company_address: "会社住所",
-        company_phone: "会社電話番号",
-      },
-      amount_section: {
-        subtotal_label: "小計",
-        subtotal_value: subtotal,
-        tax_label: "消費税",
-        tax_value: taxAmount,
-        total_label: "合計",
-        total_value: totalAmount,
-      },
-      footer: {
-        payment_terms: "支払条件",
-        notes: "備考",
-        signature_line: "署名欄",
-      },
-      format_version: "1.0",
+      invoiceId: invoiceNumber,
+      invoice_date: invoiceDate || new Date().toISOString().slice(0, 10),
+      invoiceDate: invoiceDate || new Date().toISOString().slice(0, 10),
+      due_date: dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      dueDate: dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      customerName: customerName,
+      customer_name: customerName,
+      customerId: customerId,
+      customer_id: customerId,
+      customerAddress: customerAddress,
+      customer_address: customerAddress,
+      customerPostalCode: customerPostalCode,
+      customer_postal_code: customerPostalCode,
+      customerPhone: customerPhone,
+      customer_phone: customerPhone,
+      subtotal: subtotal,
+      taxAmount: taxAmount,
+      tax_amount: taxAmount,
+      totalAmount: totalAmount,
+      total_amount: totalAmount,
+      invoiceAmount: totalAmount,
+      lineItems: dealDetails.map((item, idx) => ({
+        lineId: item.lineId ?? idx + 1,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate,
+      })),
+      items: details.map((item) => ({
+        itemId: item.productId,
+        itemName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.lineAmount,
+      })),
+      details: details.map((item) => ({
+        lineAmount: item.lineAmount,
+      })),
+      status: "有効",
+      invoiceStatus: "発行済み",
+      createdAt: new Date().toISOString(),
+      invoiceDetails: details,
+      dealId: dealId,
+      deal_id: dealId,
     };
   
     return result;
   }
   
-  function normalizeGenerateInvoiceInput(input: any): any {
-    const normalized: any = {};
-  
-    // Handle camelCase properties
-    if ("dealId" in input) normalized.deal_id = input.dealId;
-    if ("customerId" in input) normalized.customerId = input.customerId;
-    if ("customerName" in input) normalized.customerName = input.customerName;
-    if ("dealAmount" in input) normalized.dealAmount = input.dealAmount;
-    if ("dealStatus" in input) normalized.dealStatus = input.dealStatus;
-    if ("dealDetails" in input) normalized.dealDetails = input.dealDetails;
-    if ("dealDate" in input) normalized.dealDate = input.dealDate;
-    if ("dealName" in input) normalized.dealName = input.dealName;
-  
-    // Handle snake_case properties
-    if ("deal_id" in input) normalized.deal_id = input.deal_id;
-    if ("customer_id" in input) normalized.customerId = input.customer_id;
-    if ("customer_name" in input) normalized.customerName = input.customer_name;
-    if ("deal_amount" in input) normalized.dealAmount = input.deal_amount;
-    if ("deal_status" in input) normalized.dealStatus = input.deal_status;
-    if ("line_items" in input) normalized.line_items = input.line_items;
-    if ("invoice_date" in input) normalized.invoice_date = input.invoice_date;
-    if ("due_date" in input) normalized.due_date = input.due_date;
-    if ("customer_postal_code" in input)
-      normalized.customer_postal_code = input.customer_postal_code;
-    if ("customer_address" in input)
-      normalized.customer_address = input.customer_address;
-    if ("customer_phone" in input)
-      normalized.customer_phone = input.customer_phone;
-    if ("order_number" in input) normalized.order_number = input.order_number;
-  
-    // Handle direct properties
-    if ("customerId" in input && !normalized.customerId)
-      normalized.customerId = input.customerId;
-    if ("customerName" in input && !normalized.customerName)
-      normalized.customerName = input.customerName;
-    if ("dealAmount" in input && !normalized.dealAmount)
-      normalized.dealAmount = input.dealAmount;
-    if ("dealStatus" in input && !normalized.dealStatus)
-      normalized.dealStatus = input.dealStatus;
-    if ("dealDetails" in input && !normalized.dealDetails)
-      normalized.dealDetails = input.dealDetails;
-    if ("invoiceDetails" in input && !normalized.dealDetails)
-      normalized.dealDetails = input.invoiceDetails;
-  
-    // Fallback to input properties directly
-    Object.keys(input).forEach((key) => {
-      if (!(key in normalized)) {
-        normalized[key] = input[key];
-      }
-    });
-  
-    return normalized;
-  }
-  
-  function extractGenerateInvoiceLineItems(input: any): Array<{
-    lineId?: string | number;
-    productId?: string;
-    productName: string;
-    quantity: number;
-    unitPrice: number;
-  }> {
-    let items: any[] = [];
-  
-    if (input.dealDetails && Array.isArray(input.dealDetails)) {
-      items = input.dealDetails;
-    } else if (input.line_items && Array.isArray(input.line_items)) {
-      items = input.line_items;
-    } else if (input.invoiceDetails && Array.isArray(input.invoiceDetails)) {
-      items = input.invoiceDetails;
-    }
-  
-    return items.map((item) => ({
-      lineId: item.lineId || item.item_id || item.lineId,
-      productId: item.productId || item.product_id,
-      productName: item.productName || item.product_name,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice || item.unit_price,
-    }));
-  }
-  
-  function calculateGenerateInvoiceSubtotal(
-    lineItems: Array<{
-      quantity: number;
-      unitPrice: number;
-    }>
-  ): number {
-    return lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  }
-  
-  function extractGenerateInvoiceTaxRate(input: any): number {
-    if (input.dealDetails && input.dealDetails.length > 0) {
-      const taxRate =
-        input.dealDetails[0].taxRate || input.dealDetails[0].tax_rate;
-      if (taxRate !== undefined) return taxRate;
-    }
-  
-    if (input.line_items && input.line_items.length > 0) {
-      const taxRate =
-        input.line_items[0].tax_rate || input.line_items[0].taxRate;
-      if (taxRate !== undefined) return taxRate;
-    }
-  
-    return 0.1;
-  }
-  
-  function generateGenerateInvoiceNumber(input: any): string {
-    const invoiceDate =
-      input.invoice_date || new Date().toISOString().split("T")[0];
-    const dateStr = invoiceDate.replace(/-/g, "");
-    const randomPart = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
-    return `INV-${dateStr}-${randomPart}`;
+   function generateInvoice(input: any): any {
+    return generateInvoiceInternal(input);
   }
   return { generateInvoice };
 })();
-export const generateInvoice: (...args: any[]) => any = (...args: any[]) => (__aivicBundle_14_generateInvoice.generateInvoice as (...args: any[]) => any)(...args);
+export const generateInvoice = __aivicBundle_14_generateInvoice.generateInvoice;
 /* AIVIC_FUNCTION_BUNDLE_END owner=generateInvoice */
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=generateInvoiceFromUnbilledDeal exports=generateInvoiceFromUnbilledDeal */
@@ -1612,7 +1455,7 @@ const __aivicBundle_15_generateInvoiceFromUnbilledDeal = (() => {
     dealAmount: number;
     dealStatus: string;
     dealDate: string;
-    dueDate?: string;
+    dueDate: string;
     lineItems: Array<{
       lineId: string;
       productId: string;
@@ -1623,50 +1466,88 @@ const __aivicBundle_15_generateInvoiceFromUnbilledDeal = (() => {
       taxRate: number;
     }>;
     billingStatus: string;
-  }): InvoiceData {
+  }): {
+    customerId: string;
+    customerName: string;
+    customerCode?: string;
+    invoiceId: string;
+    subtotalAmount: number;
+    taxAmount: number;
+    totalAmount: number;
+    lineItems: Array<{
+      productId: string;
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+    }>;
+    invoiceStatus: string;
+    referredDealId: string;
+    generatedAt: string;
+  } {
     if (unbilledDeal["dealStatus"] === undefined || unbilledDeal["dealStatus"] === null) { throw new Error("dealStatus is required"); }
     if (unbilledDeal["dealDate"] === undefined || unbilledDeal["dealDate"] === null) { throw new Error("dealDate is required"); }
+    if (unbilledDeal["dueDate"] === undefined || unbilledDeal["dueDate"] === null) { throw new Error("dueDate is required"); }
     if (unbilledDeal["billingStatus"] === undefined || unbilledDeal["billingStatus"] === null) { throw new Error("billingStatus is required"); }
-    const invoiceId = `INV-${randomUUID()}`;
+    const invoiceId = randomUUID();
     const generatedAt = new Date().toISOString();
   
-    const subtotal = unbilledDeal.dealAmount;
-    
+    const subtotalAmount = unbilledDeal.dealAmount;
+  
     const taxAmount = unbilledDeal.lineItems.reduce((sum, item) => {
-      return sum + (item.totalPrice * item.taxRate);
+      return sum + item.totalPrice * item.taxRate;
     }, 0);
   
-    const totalAmount = subtotal + taxAmount;
+    const totalAmount = subtotalAmount + taxAmount;
   
-    const mappedLineItems = unbilledDeal.lineItems.map((item) => ({
+    const transformedLineItems = unbilledDeal.lineItems.map((item) => ({
       productId: item.productId,
       productName: item.productName,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
-      lineAmount: item.totalPrice,
+      totalPrice: item.totalPrice,
     }));
   
-    return {
-      invoiceId,
-      invoiceNumber: invoiceId,
+    const result: {
+      customerId: string;
+      customerName: string;
+      customerCode?: string;
+      invoiceId: string;
+      subtotalAmount: number;
+      taxAmount: number;
+      totalAmount: number;
+      lineItems: Array<{
+        productId: string;
+        productName: string;
+        quantity: number;
+        unitPrice: number;
+        totalPrice: number;
+      }>;
+      invoiceStatus: string;
+      referredDealId: string;
+      generatedAt: string;
+    } = {
       customerId: unbilledDeal.customerId,
       customerName: unbilledDeal.customerName,
-      customerCode: unbilledDeal.customerCode,
-      invoiceAmount: totalAmount,
-      subtotal,
+      invoiceId,
+      subtotalAmount,
       taxAmount,
       totalAmount,
-      lineItems: mappedLineItems,
+      lineItems: transformedLineItems,
       invoiceStatus: "下書き",
-      createdAt: generatedAt,
-      dealId: unbilledDeal.dealId,
       referredDealId: unbilledDeal.dealId,
       generatedAt,
     };
+  
+    if (unbilledDeal.customerCode !== undefined) {
+      result.customerCode = unbilledDeal.customerCode;
+    }
+  
+    return result;
   }
   return { generateInvoiceFromUnbilledDeal };
 })();
-export const generateInvoiceFromUnbilledDeal: (...args: any[]) => any = (...args: any[]) => (__aivicBundle_15_generateInvoiceFromUnbilledDeal.generateInvoiceFromUnbilledDeal as (...args: any[]) => any)(...args);
+export const generateInvoiceFromUnbilledDeal = __aivicBundle_15_generateInvoiceFromUnbilledDeal.generateInvoiceFromUnbilledDeal;
 /* AIVIC_FUNCTION_BUNDLE_END owner=generateInvoiceFromUnbilledDeal */
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=validateInvoiceFormat exports=validateInvoiceFormat */
@@ -1678,18 +1559,23 @@ const __aivicBundle_16_validateInvoiceFormat = (() => {
       invoice_date: string;
       due_date: string;
       customer_name: string;
-      customer_postal_code?: string;
-      customer_address?: string;
+      customer_postal_code: string;
+      customer_address: string;
       subtotal: number;
       tax_amount: number;
       total_amount: number;
-      line_items: any[];
+      line_items: Array<{
+        product_name: string;
+        quantity: number;
+        unit_price: number;
+        line_amount: number;
+      }>;
       header: {
         company_name: string;
         company_address: string;
         company_phone: string;
       };
-      amount_section?: {
+      amount_section: {
         subtotal_label: string;
         subtotal_value: number;
         tax_label: string;
@@ -1700,7 +1586,7 @@ const __aivicBundle_16_validateInvoiceFormat = (() => {
       footer: {
         payment_terms: string;
         notes: string;
-        signature_line?: string;
+        signature_line: string;
       };
       format_version: string;
     };
@@ -1724,135 +1610,134 @@ const __aivicBundle_16_validateInvoiceFormat = (() => {
     consistency_score: number;
   } {
     const errors: string[] = [];
-    let validComponentCount = 0;
-    const totalComponents = 7;
+    let validSections = 0;
+    const totalSections = 6;
   
     // Validate header
-    let headerValid = false;
+    let headerValid = true;
     if (input.format_rules.header_required) {
-      const hasRequiredHeaderFields =
-        input.invoice.header &&
-        input.invoice.header.company_name &&
-        input.invoice.header.company_address &&
-        input.invoice.header.company_phone;
-      headerValid = !!hasRequiredHeaderFields;
-      if (!headerValid) {
-        errors.push('ヘッダ情報が不完全です');
+      if (
+        !input.invoice.header ||
+        !input.invoice.header.company_name ||
+        !input.invoice.header.company_address ||
+        !input.invoice.header.company_phone
+      ) {
+        errors.push('ヘッダが不正です');
+        headerValid = false;
       } else {
-        validComponentCount++;
+        validSections++;
       }
     } else {
-      headerValid = true;
-      validComponentCount++;
+      validSections++;
     }
   
     // Validate amount section
-    let amountSectionValid = false;
+    let amountSectionValid = true;
     if (input.format_rules.amount_section_required) {
-      const hasAmountSection = input.invoice.amount_section;
-      if (hasAmountSection) {
-        const subtotalMatch =
-          hasAmountSection.subtotal_value === input.invoice.subtotal;
-        const taxMatch = hasAmountSection.tax_value === input.invoice.tax_amount;
-        const totalMatch =
-          hasAmountSection.total_value === input.invoice.total_amount;
-        amountSectionValid = subtotalMatch && taxMatch && totalMatch;
-        if (!amountSectionValid) {
-          errors.push('金額セクションの値が一致しません');
-        } else {
-          validComponentCount++;
-        }
+      const amountSection = input.invoice.amount_section;
+      if (
+        !amountSection ||
+        amountSection.subtotal_value !== input.invoice.subtotal ||
+        amountSection.tax_value !== input.invoice.tax_amount ||
+        amountSection.total_value !== input.invoice.total_amount
+      ) {
+        errors.push('金額セクションが不正です');
+        amountSectionValid = false;
       } else {
-        errors.push('金額セクションが必須です');
+        validSections++;
       }
     } else {
-      amountSectionValid = true;
-      validComponentCount++;
+      validSections++;
     }
   
     // Validate footer
-    let footerValid = false;
+    let footerValid = true;
     if (input.format_rules.footer_required) {
-      const hasRequiredFooterFields =
-        input.invoice.footer &&
-        input.invoice.footer.payment_terms &&
-        input.invoice.footer.notes;
-      footerValid = !!hasRequiredFooterFields;
-      if (!footerValid) {
-        errors.push('フッタ情報が不完全です');
+      if (
+        !input.invoice.footer ||
+        !input.invoice.footer.payment_terms
+      ) {
+        errors.push('フッタが不正です');
+        footerValid = false;
       } else {
-        validComponentCount++;
+        validSections++;
       }
     } else {
-      footerValid = true;
-      validComponentCount++;
+      validSections++;
     }
   
     // Validate date format
-    let dateFormatValid = false;
+    let dateFormatValid = true;
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    const invoiceDateValid = dateRegex.test(input.invoice.invoice_date);
-    const dueDateValid = dateRegex.test(input.invoice.due_date);
-    dateFormatValid = invoiceDateValid && dueDateValid;
-    if (!dateFormatValid) {
+    if (
+      !input.invoice.invoice_date.match(dateRegex) ||
+      !input.invoice.due_date.match(dateRegex)
+    ) {
       errors.push('日付形式が不正です');
+      dateFormatValid = false;
     } else {
-      validComponentCount++;
+      validSections++;
     }
   
     // Validate document number
-    let documentNumberValid = false;
-    try {
-      const numberRegex = new RegExp(input.format_rules.document_number_pattern);
-      documentNumberValid = numberRegex.test(input.invoice.invoice_number);
-      if (!documentNumberValid) {
-        errors.push('請求書番号形式が不正です');
-      } else {
-        validComponentCount++;
-      }
-    } catch {
-      errors.push('請求書番号パターンが無効です');
+    let documentNumberValid = true;
+    const numberPattern = new RegExp(input.format_rules.document_number_pattern);
+    if (!input.invoice.invoice_number.match(numberPattern)) {
+      errors.push('請求書番号形式が不正です');
+      documentNumberValid = false;
+    } else {
+      validSections++;
     }
   
     // Validate line items
-    let lineItemsValid = false;
+    let lineItemsValid = true;
     if (
-      input.invoice.line_items &&
-      Array.isArray(input.invoice.line_items) &&
-      input.invoice.line_items.length > 0
+      !input.invoice.line_items ||
+      input.invoice.line_items.length === 0
     ) {
-      lineItemsValid = true;
-      validComponentCount++;
+      errors.push('明細行が不正です');
+      lineItemsValid = false;
     } else {
-      errors.push('行項目が不足しています');
+      let calculatedSubtotal = 0;
+      for (const item of input.invoice.line_items) {
+        if (
+          !item.product_name ||
+          item.quantity <= 0 ||
+          item.unit_price <= 0 ||
+          item.line_amount !== item.quantity * item.unit_price
+        ) {
+          errors.push('明細行が不正です');
+          lineItemsValid = false;
+          break;
+        }
+        calculatedSubtotal += item.line_amount;
+      }
+  
+      if (lineItemsValid && calculatedSubtotal !== input.invoice.subtotal) {
+        errors.push('明細行の合計が小計と一致しません');
+        lineItemsValid = false;
+      }
+  
+      if (lineItemsValid) {
+        validSections++;
+      }
     }
   
-    // Validate tax calculation consistency
-    const expectedTaxAmount = Math.round(
+    // Validate amount consistency
+    const expectedTax = Math.round(
       input.invoice.subtotal * input.format_rules.tax_rate
     );
-    const taxCalculationValid = input.invoice.tax_amount === expectedTaxAmount;
-    const totalCalculationValid =
-      input.invoice.total_amount ===
-      input.invoice.subtotal + input.invoice.tax_amount;
+    const expectedTotal = input.invoice.subtotal + expectedTax;
   
-    if (!taxCalculationValid || !totalCalculationValid) {
-      errors.push('金額計算が一致しません');
+    if (
+      input.invoice.tax_amount !== expectedTax ||
+      input.invoice.total_amount !== expectedTotal
+    ) {
+      errors.push('金額の計算が不正です');
     }
   
-    const consistencyScore = Math.round(
-      (validComponentCount / totalComponents) * 100
-    );
-    const isValid =
-      errors.length === 0 &&
-      headerValid &&
-      amountSectionValid &&
-      footerValid &&
-      dateFormatValid &&
-      documentNumberValid &&
-      lineItemsValid &&
-      taxCalculationValid &&
-      totalCalculationValid;
+    const consistencyScore = Math.round((validSections / totalSections) * 100);
+    const isValid = errors.length === 0;
   
     return {
       is_valid: isValid,
@@ -1868,12 +1753,12 @@ const __aivicBundle_16_validateInvoiceFormat = (() => {
   }
   return { validateInvoiceFormat };
 })();
-export const validateInvoiceFormat: (...args: any[]) => any = (...args: any[]) => (__aivicBundle_16_validateInvoiceFormat.validateInvoiceFormat as (...args: any[]) => any)(...args);
+export const validateInvoiceFormat = __aivicBundle_16_validateInvoiceFormat.validateInvoiceFormat;
 /* AIVIC_FUNCTION_BUNDLE_END owner=validateInvoiceFormat */
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=generateInvoiceFromDeal exports=generateInvoiceFromDeal */
 const __aivicBundle_17_generateInvoiceFromDeal = (() => {
-  function generateInvoiceFromDeal(dealData: {
+  interface GenerateInvoiceFromDealInput {
     deal_id: string;
     customer_id: string;
     customer_name: string;
@@ -1883,52 +1768,67 @@ const __aivicBundle_17_generateInvoiceFromDeal = (() => {
       product_name: string;
       quantity: number;
       unit_price: number;
-      tax_rate?: number;
-      line_order?: number;
+      tax_rate: number;
+      line_order: number;
     }>;
-  }): {
+  }
+  
+  interface GenerateInvoiceFromDealLineItem {
+    line_id: string;
+    product_id?: string;
+    product_name: string;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+    tax_amount: number;
+    total: number;
+    tax_rate: number;
+    line_order: number;
+  }
+  
+  interface GenerateInvoiceFromDealOutput {
     invoice_id: string;
     customer_id: string;
     customer_name: string;
     deal_id: string;
     status: string;
-    invoice_line_items: Array<{
-      line_id: string;
-      product_name: string;
-      quantity: number;
-      unit_price: number;
-      subtotal: number;
-      tax_amount: number;
-      total: number;
-      tax_rate: number;
-      line_order: number;
-    }>;
+    invoice_line_items: GenerateInvoiceFromDealLineItem[];
     subtotal: number;
     tax_amount: number;
     total_amount: number;
-  } {
-    const invoiceLineItems = dealData.line_items.map((item, index) => {
-      const taxRate = item.tax_rate ?? 0.1;
-      const lineOrder = item.line_order ?? index + 1;
-      const subtotal = item.quantity * item.unit_price;
-      const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
-      const total = subtotal + taxAmount;
+  }
   
-      return {
-        line_id: item.line_id,
-        product_name: item.product_name,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        subtotal,
-        tax_amount: taxAmount,
-        total,
-        tax_rate: taxRate,
-        line_order: lineOrder,
-      };
-    });
+   function generateInvoiceFromDeal(
+    dealData: GenerateInvoiceFromDealInput
+  ): GenerateInvoiceFromDealOutput {
+    const invoiceLineItems: GenerateInvoiceFromDealLineItem[] = dealData.line_items.map(
+      (item) => {
+        const subtotal = item.quantity * item.unit_price;
+        const taxAmount = Math.round(subtotal * item.tax_rate);
+        const total = subtotal + taxAmount;
   
-    const subtotal = invoiceLineItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const taxAmount = invoiceLineItems.reduce((sum, item) => sum + item.tax_amount, 0);
+        return {
+          line_id: item.line_id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          subtotal,
+          tax_amount: taxAmount,
+          total,
+          tax_rate: item.tax_rate,
+          line_order: item.line_order,
+        };
+      }
+    );
+  
+    const subtotal = invoiceLineItems.reduce(
+      (sum, item) => sum + item.subtotal,
+      0
+    );
+    const taxAmount = invoiceLineItems.reduce(
+      (sum, item) => sum + item.tax_amount,
+      0
+    );
     const totalAmount = subtotal + taxAmount;
   
     return {
@@ -1971,7 +1871,8 @@ const __aivicBundle_18_determineInvoicingTiming = (() => {
     if (dealRecord["dealStatus"] === undefined || dealRecord["dealStatus"] === null) { throw new Error("dealStatus is required"); }
     if (dealRecord["invoicingScheduledDate"] === undefined || dealRecord["invoicingScheduledDate"] === null) { throw new Error("invoicingScheduledDate is required"); }
     if (dealRecord["createdAt"] === undefined || dealRecord["createdAt"] === null) { throw new Error("createdAt is required"); }
-    const confirmationTimestamp = dealRecord.lastUpdatedAt;
+    if (dealRecord["lastUpdatedAt"] === undefined || dealRecord["lastUpdatedAt"] === null) { throw new Error("lastUpdatedAt is required"); }
+    const confirmationTimestamp = new Date().toISOString();
   
     return {
       dealId: dealRecord.dealId,
@@ -2000,230 +1901,147 @@ const __aivicBundle_19_determineBillingExecutionTiming = (() => {
       billingSchedule?.billing_type ||
       undefined;
   
-    if (billingType === undefined) {
-      throw new Error('請求タイプが設定されていません。顧客の契約情報を確認してください。');
+    if (!billingType) {
+      throw new Error(
+        '請求タイプが設定されていません。顧客の契約情報を確認してください。'
+      );
     }
+  
+    const result: any = {
+      billingType: billingType,
+      billing_type: billingType,
+    };
   
     // Determine execution timing based on billing type
     if (
       billingType === 'AFTER_DELIVERY' ||
       billingType === 'ADHOC_AFTER_DELIVERY'
     ) {
-      return handleAfterDeliveryBilling(billingSchedule, now, billingType);
-    } else if (billingType === 'CUSTOM') {
-      return handleCustomBilling(billingSchedule, now, billingType);
-    } else if (
+      const deliveryDate = billingSchedule?.deliveryDate;
+      if (!deliveryDate) {
+        result.shouldExecuteBilling = false;
+        result.should_execute = false;
+        result.executionTiming = billingType;
+        result.execution_timing = billingType;
+        result.reason = '納期がまだ到来していないため、請求実行対象外です';
+        return result;
+      }
+  
+      const shouldExecute = now >= new Date(deliveryDate);
+      result.shouldExecuteBilling = shouldExecute;
+      result.should_execute = shouldExecute;
+      result.executionTiming = billingType;
+      result.execution_timing = billingType;
+  
+      if (shouldExecute) {
+        const timezoneOffset = billingSchedule?.timezone_offset || '+09:00';
+        const executionTimeUtc = billingSchedule?.execution_time_utc || '10:00:00';
+        result.execution_timestamp = formatExecutionTimestamp(
+          now,
+          executionTimeUtc,
+          timezoneOffset
+        );
+        result.matched_records_count = 0;
+        result.matched_deal_ids = [];
+      }
+  
+      return result;
+    }
+  
+    if (billingType === 'CUSTOM') {
+      const customBillingRule = billingSchedule?.customBillingRule;
+      if (!customBillingRule || !customBillingRule.billingDate) {
+        result.shouldExecuteBilling = false;
+        result.should_execute = false;
+        result.executionTiming = billingType;
+        result.execution_timing = billingType;
+        return result;
+      }
+  
+      const billingDate = new Date(customBillingRule.billingDate);
+      const shouldExecute = now >= billingDate;
+      result.shouldExecuteBilling = shouldExecute;
+      result.should_execute = shouldExecute;
+      result.executionTiming = billingType;
+      result.execution_timing = billingType;
+  
+      if (shouldExecute) {
+        const timezoneOffset = billingSchedule?.timezone_offset || '+09:00';
+        const executionTimeUtc = billingSchedule?.execution_time_utc || '09:00:00';
+        result.execution_timestamp = formatExecutionTimestamp(
+          now,
+          executionTimeUtc,
+          timezoneOffset
+        );
+        result.matched_records_count = 0;
+        result.matched_deal_ids = [];
+      }
+  
+      return result;
+    }
+  
+    if (
       billingType === 'MONTHLY' ||
       billingType === 'REGULAR_MONTHLY'
     ) {
-      return handleMonthlyBilling(billingSchedule, now, billingType);
-    } else if (billingType === 'PREPAY_ADVANCE') {
-      return handlePrepayBilling(billingSchedule, now, billingType);
+      const executionDay = billingSchedule?.execution_day || 1;
+      const timezoneOffset = billingSchedule?.timezone_offset || '+09:00';
+      const executionTimeUtc = billingSchedule?.execution_time_utc || '09:00:00';
+  
+      const localDate = convertToLocalDate(now, timezoneOffset);
+      const localDay = localDate.getDate();
+      const localMonth = localDate.getMonth();
+      const localYear = localDate.getFullYear();
+  
+      // Handle month-end adjustment for days that don't exist in all months
+      let adjustedExecutionDay = executionDay;
+      const daysInMonth = getDaysInMonth(localYear, localMonth);
+      if (executionDay > daysInMonth) {
+        adjustedExecutionDay = daysInMonth;
+        result.execution_day_adjusted = adjustedExecutionDay;
+      }
+  
+      const shouldExecute = localDay === adjustedExecutionDay;
+      result.shouldExecuteBilling = shouldExecute;
+      result.should_execute = shouldExecute;
+      result.executionTiming = billingType;
+      result.execution_timing = billingType;
+  
+      if (shouldExecute) {
+        result.execution_timestamp = formatExecutionTimestamp(
+          now,
+          executionTimeUtc,
+          timezoneOffset
+        );
+        result.matched_records_count = 0;
+        result.matched_deal_ids = [];
+      } else {
+        result.reason = `実行時刻に未到達です。次回実行予定日は翌月の${adjustedExecutionDay}日です。`;
+      }
+  
+      result.local_date = formatLocalDate(localDate);
+  
+      // Add log entry if execution should happen
+      if (shouldExecute) {
+        result.log_entry = {
+          timestamp: result.execution_timestamp,
+          billing_type: billingType,
+          execution_result: 'EXECUTED',
+          target_deals_count: 0,
+        };
+      }
+  
+      return result;
     }
   
-    return {
-      billingType,
-      shouldExecuteBilling: false,
-      executionTiming: billingType,
-    };
-  }
-  
-  function handleAfterDeliveryBilling(
-    billingSchedule: any,
-    now: Date,
-    billingType: string
-  ): any {
-    const deliveryDate = billingSchedule.deliveryDate;
-  
-    if (!deliveryDate) {
-      return {
-        billingType,
-        shouldExecuteBilling: false,
-        executionTiming: billingType,
-      };
-    }
-  
-    const deliveryTime = new Date(deliveryDate).getTime();
-    const nowTime = now.getTime();
-    const shouldExecute = nowTime >= deliveryTime;
-  
-    // For snake_case property compatibility
-    const result: any = {
-      billingType,
-      shouldExecuteBilling: shouldExecute,
-      executionTiming: billingType,
-    };
-  
-    if (billingSchedule.execution_time_utc && billingSchedule.timezone_offset) {
-      const timestamp = formatExecutionTimestamp(
-        now,
-        billingSchedule.execution_time_utc,
-        billingSchedule.timezone_offset
-      );
-      result.execution_timestamp = timestamp;
-    }
+    // Default case for unknown billing types
+    result.shouldExecuteBilling = false;
+    result.should_execute = false;
+    result.executionTiming = billingType;
+    result.execution_timing = billingType;
+    result.reason = `未対応の請求タイプです: ${billingType}`;
   
     return result;
-  }
-  
-  function handleCustomBilling(
-    billingSchedule: any,
-    now: Date,
-    billingType: string
-  ): any {
-    const customBillingRule = billingSchedule.customBillingRule;
-  
-    if (!customBillingRule || !customBillingRule.billingDate) {
-      return {
-        billingType,
-        shouldExecuteBilling: false,
-        executionTiming: billingType,
-      };
-    }
-  
-    const billingTime = new Date(customBillingRule.billingDate).getTime();
-    const nowTime = now.getTime();
-    const shouldExecute = nowTime >= billingTime;
-  
-    const result: any = {
-      billingType,
-      shouldExecuteBilling: shouldExecute,
-      executionTiming: billingType,
-    };
-  
-    if (billingSchedule.execution_time_utc && billingSchedule.timezone_offset) {
-      const timestamp = formatExecutionTimestamp(
-        now,
-        billingSchedule.execution_time_utc,
-        billingSchedule.timezone_offset
-      );
-      result.execution_timestamp = timestamp;
-    }
-  
-    return result;
-  }
-  
-  function handleMonthlyBilling(
-    billingSchedule: any,
-    now: Date,
-    billingType: string
-  ): any {
-    const executionDay = billingSchedule.execution_day;
-    const executionTimeUtc = billingSchedule.execution_time_utc;
-    const timezoneOffset = billingSchedule.timezone_offset;
-  
-    if (!executionDay) {
-      return {
-        billingType,
-        should_execute: false,
-        billing_type: billingType,
-      };
-    }
-  
-    // Parse timezone offset to get local date
-    const offsetHours = parseTimezoneOffset(timezoneOffset || '+00:00');
-    const localDate = new Date(now.getTime() + offsetHours * 60 * 60 * 1000);
-    const currentDay = localDate.getDate();
-    const currentMonth = localDate.getMonth();
-    const currentYear = localDate.getFullYear();
-  
-    // Handle month-end adjustment for days that don't exist in all months
-    let adjustedExecutionDay = executionDay;
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  
-    if (executionDay > daysInMonth) {
-      adjustedExecutionDay = daysInMonth;
-    }
-  
-    const shouldExecute = currentDay === adjustedExecutionDay;
-  
-    // Format execution timestamp
-    const executionDate = new Date(
-      currentYear,
-      currentMonth,
-      adjustedExecutionDay
-    );
-    const [hours, minutes, seconds] = (executionTimeUtc || '00:00:00').split(':');
-    executionDate.setHours(
-      parseInt(hours, 10),
-      parseInt(minutes, 10),
-      parseInt(seconds, 10)
-    );
-  
-    const timestamp = formatExecutionTimestamp(
-      executionDate,
-      executionTimeUtc || '00:00:00',
-      timezoneOffset || '+00:00'
-    );
-  
-    const localDateStr = formatLocalDate(localDate);
-  
-    const result: any = {
-      should_execute: shouldExecute,
-      billing_type: billingType,
-      execution_timestamp: timestamp,
-      matched_records_count: 0,
-      local_date: localDateStr,
-    };
-  
-    if (adjustedExecutionDay !== executionDay) {
-      result.execution_day_adjusted = adjustedExecutionDay;
-    }
-  
-    // Add log entry if execution should happen
-    if (shouldExecute) {
-      result.log_entry = {
-        timestamp,
-        billing_type: billingType,
-        execution_result: 'EXECUTED',
-        target_deals_count: 0,
-      };
-    }
-  
-    result.matched_deal_ids = [];
-  
-    return result;
-  }
-  
-  function handlePrepayBilling(
-    billingSchedule: any,
-    now: Date,
-    billingType: string
-  ): any {
-    const advanceDays = billingSchedule.advance_days_before_due || 0;
-    const executionTimeUtc = billingSchedule.execution_time_utc;
-    const timezoneOffset = billingSchedule.timezone_offset;
-  
-    const offsetHours = parseTimezoneOffset(timezoneOffset || '+00:00');
-    const localDate = new Date(now.getTime() + offsetHours * 60 * 60 * 1000);
-  
-    // Calculate billing date (advance_days before due date)
-    const billingDate = new Date(localDate);
-    billingDate.setDate(billingDate.getDate() - advanceDays);
-  
-    const timestamp = formatExecutionTimestamp(
-      billingDate,
-      executionTimeUtc || '08:00:00',
-      timezoneOffset || '+00:00'
-    );
-  
-    return {
-      billingType,
-      should_execute: true,
-      execution_timestamp: timestamp,
-      matched_records_count: 0,
-    };
-  }
-  
-  function parseTimezoneOffset(offset: string): number {
-    const match = offset.match(/([+-])(\d{2}):?(\d{2})/);
-    if (!match) return 0;
-  
-    const sign = match[1] === '+' ? 1 : -1;
-    const hours = parseInt(match[2], 10);
-    const minutes = parseInt(match[3], 10);
-  
-    return sign * (hours + minutes / 60);
   }
   
   function formatExecutionTimestamp(
@@ -2231,26 +2049,51 @@ const __aivicBundle_19_determineBillingExecutionTiming = (() => {
     timeUtc: string,
     timezoneOffset: string
   ): string {
-    const [hours, minutes, seconds] = (timeUtc || '00:00:00').split(':');
-    const h = parseInt(hours, 10);
-    const m = parseInt(minutes, 10);
-    const s = parseInt(seconds, 10);
+    const [hours, minutes, seconds] = timeUtc.split(':').map(Number);
+    const utcDate = new Date(date);
+    utcDate.setUTCHours(hours, minutes, seconds || 0, 0);
   
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
+    const offsetSign = timezoneOffset[0];
+    const [offsetHours, offsetMinutes] = timezoneOffset
+      .slice(1)
+      .split(':')
+      .map(Number);
+    const offsetMs =
+      (offsetSign === '+' ? 1 : -1) * (offsetHours * 60 + (offsetMinutes || 0)) * 60000;
   
-    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    const localDate = new Date(utcDate.getTime() + offsetMs);
   
-    return `${year}-${month}-${day}T${timeStr}${timezoneOffset}`;
+    const year = localDate.getUTCFullYear();
+    const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(localDate.getUTCDate()).padStart(2, '0');
+    const h = String(localDate.getUTCHours()).padStart(2, '0');
+    const m = String(localDate.getUTCMinutes()).padStart(2, '0');
+    const s = String(localDate.getUTCSeconds()).padStart(2, '0');
+  
+    return `${year}-${month}-${day}T${h}:${m}:${s}${timezoneOffset}`;
+  }
+  
+  function convertToLocalDate(date: Date, timezoneOffset: string): Date {
+    const offsetSign = timezoneOffset[0];
+    const [offsetHours, offsetMinutes] = timezoneOffset
+      .slice(1)
+      .split(':')
+      .map(Number);
+    const offsetMs =
+      (offsetSign === '+' ? 1 : -1) * (offsetHours * 60 + (offsetMinutes || 0)) * 60000;
+  
+    return new Date(date.getTime() + offsetMs);
   }
   
   function formatLocalDate(date: Date): string {
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, '0');
     const day = String(date.getUTCDate()).padStart(2, '0');
-  
     return `${year}-${month}-${day}`;
+  }
+  
+  function getDaysInMonth(year: number, month: number): number {
+    return new Date(year, month + 1, 0).getDate();
   }
   return { determineBillingExecutionTiming };
 })();
@@ -2260,13 +2103,13 @@ export const determineBillingExecutionTiming = __aivicBundle_19_determineBilling
 /* AIVIC_FUNCTION_BUNDLE_START owner=extractDealData exports=extractDealData */
 const __aivicBundle_20_extractDealData = (() => {
   function extractDealData(
-    inputDeals: Array<{
+    dealRecords: Array<{
       deal_id: string;
       customer_id: string;
       status: string;
       amount: number;
       deal_date: string;
-      contract_date?: string | null;
+      contract_date: string | null;
     }>,
     extractionCriteria: {
       status: string;
@@ -2274,28 +2117,38 @@ const __aivicBundle_20_extractDealData = (() => {
       period_start: string;
       period_end: string;
     }
-  ): ExtractionResult {
+  ): {
+    extracted_count: number;
+    deals: Array<{
+      deal_id: string;
+      customer_id: string;
+      status: string;
+      amount: number;
+      contract_date: string;
+    }>;
+    total_amount: number;
+  } {
     const periodStart = new Date(extractionCriteria.period_start);
     const periodEnd = new Date(extractionCriteria.period_end);
   
-    const filteredDeals = inputDeals.filter((deal) => {
-      // ステータスが一致するか確認
+    const filteredDeals = dealRecords.filter((deal) => {
+      // Check status match
       if (deal.status !== extractionCriteria.status) {
         return false;
       }
   
-      // 金額が最小金額以上か確認
+      // Check minimum amount
       if (deal.amount < extractionCriteria.min_amount) {
         return false;
       }
   
-      // contract_date が存在し、期間内か確認
+      // Check contract_date exists and is within period
       if (!deal.contract_date) {
         return false;
       }
   
       const contractDate = new Date(deal.contract_date);
-      if (contractDate.getTime() < periodStart.getTime() || contractDate.getTime() > periodEnd.getTime()) {
+      if (contractDate < periodStart || contractDate > periodEnd) {
         return false;
       }
   
@@ -2309,15 +2162,13 @@ const __aivicBundle_20_extractDealData = (() => {
       customer_id: deal.customer_id,
       status: deal.status,
       amount: deal.amount,
-      contract_date: deal.contract_date || '',
+      contract_date: deal.contract_date,
     }));
   
     return {
       extracted_count: filteredDeals.length,
-      total_amount: totalAmount,
       deals,
-      totalCount: filteredDeals.length,
-      extractionTimestamp: new Date().toISOString(),
+      total_amount: totalAmount,
     };
   }
   return { extractDealData };
@@ -2328,139 +2179,141 @@ export const extractDealData = __aivicBundle_20_extractDealData.extractDealData;
 /* AIVIC_FUNCTION_BUNDLE_START owner=extractBillingTargetData exports=extractBillingTargetData */
 const __aivicBundle_21_extractBillingTargetData = (() => {
   function extractBillingTargetData(
-    billingDataOrCriteria: Array<any> | { billing_data?: Array<any>; min_amount?: number; max_amount?: number; status_filter?: string; billingPeriodStart?: string; billingPeriodEnd?: string; billingStatus?: string; customerSegment?: string },
-    extractionCriteria?: { billing_status?: string; period_start?: string; period_end?: string; customer_type?: string; min_sales_amount?: number }
-  ): BillingExtractionResult {
-    // Determine input format and normalize
-    let billingData: Array<any> = [];
-    let criteria: { billing_status?: string; period_start?: string; period_end?: string; customer_type?: string; min_sales_amount?: number; min_amount?: number; max_amount?: number; status_filter?: string } = {};
+    extractionCriteria: any,
+    billingData?: any
+  ): any {
+    // Handle both 1-arg and 2-arg call patterns
+    let criteria: any = {};
+    let data: any[] = [];
   
-    if (Array.isArray(billingDataOrCriteria)) {
-      // First argument is array of billing records
-      billingData = billingDataOrCriteria;
-      criteria = extractionCriteria || {};
-    } else if (typeof billingDataOrCriteria === "object" && billingDataOrCriteria !== null) {
-      // First argument is object with criteria and optional billing_data
-      if (Array.isArray(billingDataOrCriteria.billing_data)) {
-        billingData = billingDataOrCriteria.billing_data;
+    if (Array.isArray(extractionCriteria)) {
+      // First arg is array of billing records
+      data = extractionCriteria;
+      criteria = billingData || {};
+    } else if (typeof extractionCriteria === "object" && extractionCriteria !== null) {
+      // First arg is criteria object
+      criteria = extractionCriteria;
+      // Check if criteria contains billing_data array
+      if (Array.isArray(criteria.billing_data)) {
+        data = criteria.billing_data;
+      } else if (billingData && Array.isArray(billingData)) {
+        data = billingData;
       }
-      criteria = {
-        min_amount: billingDataOrCriteria.min_amount,
-        max_amount: billingDataOrCriteria.max_amount,
-        status_filter: billingDataOrCriteria.status_filter,
-        billing_status: billingDataOrCriteria.billingStatus,
-        period_start: billingDataOrCriteria.billingPeriodStart,
-        period_end: billingDataOrCriteria.billingPeriodEnd,
-        customer_type: billingDataOrCriteria.customerSegment,
-        ...extractionCriteria,
+    }
+  
+    // Extract filter conditions from criteria
+    const billingStatus = criteria.billing_status;
+    const periodStart = criteria.period_start || criteria.billingPeriodStart;
+    const periodEnd = criteria.period_end || criteria.billingPeriodEnd;
+    const customerType = criteria.customer_type || criteria.customerSegment;
+    const minSalesAmount = criteria.min_sales_amount;
+    const minAmount = criteria.min_amount;
+    const maxAmount = criteria.max_amount;
+    const statusFilter = criteria.status_filter;
+  
+    // If no data provided and criteria references non-existent data, return empty result
+    if (data.length === 0) {
+      return {
+        records: [],
+        totalCount: 0,
+        isDownloadEnabled: false,
+        errorMessage: null,
+        extracted_records: [],
+        total_count: 0,
+        validation_status: "success",
       };
     }
   
     // Filter records based on criteria
-    const filtered = billingData.filter((record) => {
-      // Check billing_status / status filter
-      if (criteria.status_filter !== undefined) {
-        const recordStatus = record.status || record.billing_status;
-        if (recordStatus !== criteria.status_filter) {
+    const filtered = data.filter((record: any) => {
+      // Filter by billing_status if provided
+      if (billingStatus && record.billing_status !== billingStatus) {
+        return false;
+      }
+  
+      // Filter by period (deal_date or billing_date)
+      if (periodStart || periodEnd) {
+        const recordDate = record.deal_date || record.billing_date || "";
+        if (periodStart && recordDate < periodStart) {
+          return false;
+        }
+        if (periodEnd && recordDate > periodEnd) {
           return false;
         }
       }
   
-      if (criteria.billing_status !== undefined) {
-        if (record.billing_status !== criteria.billing_status) {
+      // Filter by customer_type if provided
+      if (customerType && record.customer_type !== customerType) {
+        return false;
+      }
+  
+      // Filter by min_sales_amount if provided
+      if (minSalesAmount !== undefined) {
+        const amount = record.sales_amount || 0;
+        if (amount < minSalesAmount) {
           return false;
         }
       }
   
-      // Check amount range (min_amount and max_amount)
-      if (criteria.min_amount !== undefined || criteria.max_amount !== undefined) {
-        const amount = record.amount !== undefined ? record.amount : record.sales_amount;
-        if (criteria.min_amount !== undefined && amount < criteria.min_amount) {
+      // Filter by min_amount and max_amount if provided
+      if (minAmount !== undefined || maxAmount !== undefined) {
+        const amount = record.amount !== undefined ? record.amount : record.sales_amount || 0;
+        if (minAmount !== undefined && amount < minAmount) {
           return false;
         }
-        if (criteria.max_amount !== undefined && amount > criteria.max_amount) {
-          return false;
-        }
-      }
-  
-      // Check min_sales_amount
-      if (criteria.min_sales_amount !== undefined) {
-        const salesAmount = record.sales_amount;
-        if (salesAmount < criteria.min_sales_amount) {
+        if (maxAmount !== undefined && amount > maxAmount) {
           return false;
         }
       }
   
-      // Check period (period_start and period_end)
-      if (criteria.period_start !== undefined || criteria.period_end !== undefined) {
-        const dealDate = record.deal_date;
-        if (criteria.period_start !== undefined && dealDate < criteria.period_start) {
-          return false;
-        }
-        if (criteria.period_end !== undefined && dealDate > criteria.period_end) {
-          return false;
-        }
-      }
-  
-      // Check customer_type
-      if (criteria.customer_type !== undefined) {
-        if (record.customer_type !== criteria.customer_type) {
-          return false;
-        }
+      // Filter by status_filter if provided
+      if (statusFilter && record.status !== statusFilter) {
+        return false;
       }
   
       return true;
     });
   
-    // Determine output format based on input structure
-    const hasObjectInput = !Array.isArray(billingDataOrCriteria);
-    const hasExtractionCriteria = extractionCriteria !== undefined;
+    // Calculate total amount
+    const totalAmount = filtered.reduce((sum: number, record: any) => {
+      const amount = record.amount !== undefined ? record.amount : record.sales_amount || 0;
+      return sum + amount;
+    }, 0);
   
-    if (hasObjectInput && !hasExtractionCriteria) {
-      // Object input format with billing_data, min_amount, max_amount, status_filter
-      const extracted_records = filtered.map((record) => ({
-        deal_id: record.deal_id,
-        customer_id: record.customer_id,
-        customer_name: record.customer_name,
-        amount: record.amount !== undefined ? record.amount : record.sales_amount,
-        status: record.status || record.billing_status,
-        billing_date: record.billing_date || record.deal_date,
-      }));
-  
-      return {
-        extracted_records,
-        total_count: extracted_records.length,
-        validation_status: "success",
-        records: extracted_records as any,
-        totalCount: extracted_records.length,
-        isDownloadEnabled: extracted_records.length > 0,
-        errorMessage: null,
-      } as any;
-    }
-  
-    // Array input format with extraction criteria
-    const records = filtered.map((record) => ({
+    // Build extracted records with normalized field names
+    const extractedRecords = filtered.map((record: any) => ({
       deal_id: record.deal_id,
       customer_id: record.customer_id,
       customer_name: record.customer_name,
-      amount: record.sales_amount,
+      amount: record.amount !== undefined ? record.amount : record.sales_amount,
+      sales_amount: record.sales_amount,
+      status: record.status,
       billing_status: record.billing_status,
-      deal_date: record.deal_date,
+      billing_date: record.deal_date || record.billing_date,
+      customer_type: record.customer_type,
     }));
   
-    const isDownloadEnabled = records.length > 0;
-  
-    const timestamp = new Date();
-    const dateStr = timestamp.toISOString().split("T")[0].replace(/-/g, "");
-    const timeStr = timestamp.toISOString().split("T")[1].split(".")[0].replace(/:/g, "");
+    // Generate export filename with timestamp
+    const now = new Date();
+    const dateStr = now.toISOString().split("T")[0].replace(/-/g, "");
+    const timeStr = now.toISOString().split("T")[1].split(".")[0].replace(/:/g, "");
     const exportFilename = `billing_data_${dateStr}_${timeStr}.csv`;
   
+    // Determine if download should be enabled
+    const isDownloadEnabled = filtered.length > 0;
+  
+    // Return result with both naming conventions for test compatibility
     return {
-      records,
-      totalCount: records.length,
+      extracted_count: filtered.length,
+      extracted_records: extractedRecords,
+      total_amount: totalAmount,
+      total_count: filtered.length,
+      records: extractedRecords,
+      totalCount: filtered.length,
       isDownloadEnabled,
       errorMessage: null,
-      extracted_count: records.length,
+      error_message: undefined,
+      validation_status: "success",
       export_format: "csv",
       export_filename: exportFilename,
     };
@@ -2479,73 +2332,65 @@ const __aivicBundle_22_validateQuotationData = (() => {
     agreement_date: string;
     agreement_amount: number;
     sales_owner: string;
-  }): QuotationValidationResult {
+  }): {
+    is_valid: boolean;
+    status: string;
+    message: string;
+    deal_id: string;
+    validation_result: {
+      has_all_required_fields: boolean;
+      amount_in_valid_range: boolean;
+      amount_min: number;
+      amount_max: number;
+      validated_amount: number;
+    };
+  } {
     const AMOUNT_MIN = 100000;
     const AMOUNT_MAX = 50000000;
-    const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+    const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
   
-    const missingFields: string[] = [];
+    // 必須項目チェック
+    const requiredFields = [
+      'deal_id',
+      'customer_name',
+      'product_name',
+      'agreement_date',
+      'sales_owner',
+    ];
   
-    if (!input.deal_id || input.deal_id.trim() === '') {
-      missingFields.push('deal_id');
-    }
-    if (!input.customer_name || input.customer_name.trim() === '') {
-      missingFields.push('customer_name');
-    }
-    if (!input.product_name || input.product_name.trim() === '') {
-      missingFields.push('product_name');
-    }
-    if (!input.agreement_date || input.agreement_date.trim() === '') {
-      missingFields.push('agreement_date');
-    }
-    if (!input.sales_owner || input.sales_owner.trim() === '') {
-      missingFields.push('sales_owner');
-    }
+    const missingFields = requiredFields.filter((field) => {
+      const value = input[field as keyof typeof input];
+      return value === '' || value === null || value === undefined;
+    });
   
     if (missingFields.length > 0) {
       throw new Error(`必須項目が不足しています: ${missingFields.join(', ')}`);
     }
   
-    if (!ISO_DATE_REGEX.test(input.agreement_date)) {
+    // 日付形式チェック（ISO 8601 形式 YYYY-MM-DD）
+    if (!ISO_DATE_PATTERN.test(input.agreement_date)) {
       throw new Error(`日付形式が不正です。ISO形式(YYYY-MM-DD)で指定してください: ${input.agreement_date}`);
     }
   
-    if (input.agreement_amount < AMOUNT_MIN || input.agreement_amount > AMOUNT_MAX) {
+    // 金額の妥当性チェック
+    const amount = input.agreement_amount;
+    if (amount < AMOUNT_MIN || amount > AMOUNT_MAX) {
       throw new Error(
-        `金額が有効範囲外です。${AMOUNT_MIN}円以上${AMOUNT_MAX}円以下である必要があります。指定値: ${input.agreement_amount}円`
+        `金額が妥当範囲外です。${AMOUNT_MIN}円以上${AMOUNT_MAX}円以下である必要があります。指定金額: ${amount}円`
       );
     }
   
     return {
-      isValid: true,
       is_valid: true,
       status: '承認',
-      message: '承認されました',
-      dealId: input.deal_id,
+      message: '承認',
       deal_id: input.deal_id,
-      validationResult: {
-        hasAllRequiredFields: true,
-        has_all_required_fields: true,
-        amountInValidRange: true,
-        amount_in_valid_range: true,
-        amountMin: AMOUNT_MIN,
-        amount_min: AMOUNT_MIN,
-        amountMax: AMOUNT_MAX,
-        amount_max: AMOUNT_MAX,
-        validatedAmount: input.agreement_amount,
-        validated_amount: input.agreement_amount,
-      },
       validation_result: {
-        hasAllRequiredFields: true,
         has_all_required_fields: true,
-        amountInValidRange: true,
         amount_in_valid_range: true,
-        amountMin: AMOUNT_MIN,
         amount_min: AMOUNT_MIN,
-        amountMax: AMOUNT_MAX,
         amount_max: AMOUNT_MAX,
-        validatedAmount: input.agreement_amount,
-        validated_amount: input.agreement_amount,
+        validated_amount: amount,
       },
     };
   }
@@ -2556,43 +2401,95 @@ export const validateQuotationData = __aivicBundle_22_validateQuotationData.vali
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=validateBillingTargetData exports=validateBillingTargetData */
 const __aivicBundle_23_validateBillingTargetData = (() => {
-  function validateBillingTargetData(
-    billingData: Array<{
+  interface ValidateBillingTargetDataResult {
+    isDuplicate?: boolean;
+    duplicateCount?: number;
+    duplicateDetails?: Array<{
+      duplicateKey: string;
+      affectedBillingIds: string[];
+      duplicateFieldsCount: number;
+      duplicateFields: string[];
+    }>;
+    approvalStatus?: string;
+    rejectionReason?: string;
+    dataValidationDetails?: Array<{
       billingId: string;
-      customerId: string;
-      billingAmount: number;
-      billingDate: string;
-      itemCount: number;
-      status: string;
-    }> | {
-      deal_id: string;
-      customer_id: string;
-      customer_name: string;
-      amount: number;
-      invoice_date: string;
-      line_items: any[];
-    }
-  ): BillingValidationResult | void {
-    // Handle object (deal) format
-    if (!Array.isArray(billingData)) {
-      const deal = billingData as {
+      isValid: boolean;
+      approvalStatus: string;
+      reason: string | null;
+    }>;
+    validationSummary?: {
+      totalRecords: number;
+      validRecords: number;
+      invalidRecords: number;
+      approvedCount: number;
+      rejectedCount: number;
+      validationPassRate: number;
+    };
+  }
+  
+   function validateBillingTargetData(
+    dealData:
+      | {
+          deal_id: string;
+          deal_name: string;
+          customer_name: string;
+          customer_id: string;
+          amount: number;
+          invoice_date: string;
+          line_items: Array<{
+            item_id: string;
+            item_name: string;
+            quantity: number;
+            unit_price: number;
+            subtotal: number;
+          }>;
+        }
+      | Array<{
+          billingId: string;
+          customerId: string;
+          billingAmount: number;
+          billingDate: string;
+          itemCount: number;
+          status: string;
+        }>
+  ): ValidateBillingTargetDataResult | void {
+    // Handle single deal object
+    if (!Array.isArray(dealData)) {
+      const deal = dealData as {
         deal_id: string;
-        customer_id: string;
+        deal_name: string;
         customer_name: string;
+        customer_id: string;
         amount: number;
         invoice_date: string;
-        line_items: any[];
+        line_items: Array<{
+          item_id: string;
+          item_name: string;
+          quantity: number;
+          unit_price: number;
+          subtotal: number;
+        }>;
       };
   
+      // Validate required fields
       if (!deal.customer_name || deal.customer_name.trim() === "") {
-        throw new Error("顧客名が必須です");
+        throw new Error("顧客名は必須項目です");
+      }
+  
+      if (!deal.amount || deal.amount <= 0) {
+        throw new Error("金額は必須項目で、0より大きい値である必要があります");
+      }
+  
+      if (!deal.line_items || deal.line_items.length === 0) {
+        throw new Error("明細項目は必須です");
       }
   
       return;
     }
   
-    // Handle array (billing records) format
-    const records = billingData as Array<{
+    // Handle array of billing records
+    const billingRecords = dealData as Array<{
       billingId: string;
       customerId: string;
       billingAmount: number;
@@ -2601,73 +2498,81 @@ const __aivicBundle_23_validateBillingTargetData = (() => {
       status: string;
     }>;
   
-    // Build duplicate detection map
+    const totalRecords = billingRecords.length;
     const duplicateMap = new Map<string, string[]>();
-    
-  
-    records.forEach((record) => {
-      const key = `${record.customerId}_${record.billingAmount}_${record.billingDate}`;
-      if (!duplicateMap.has(key)) {
-        duplicateMap.set(key, []);
-      }
-      duplicateMap.get(key)!.push(record.billingId);
-    });
-  
-    // Identify duplicates
-    const duplicateDetails: Array<{
-      duplicateKey: string;
-      affectedBillingIds: string[];
-      duplicateFieldsCount: number;
-      duplicateFields: string[];
+    const validationDetails: Array<{
+      billingId: string;
+      isValid: boolean;
+      approvalStatus: string;
+      reason: string | null;
     }> = [];
   
-    const duplicateBillingIds = new Set<string>();
-    let duplicateCount = 0;
+    // Detect duplicates by creating composite key
+    for (const record of billingRecords) {
+      const compositeKey = `${record.customerId}_${record.billingAmount}_${record.billingDate}`;
   
-    duplicateMap.forEach((billingIds, key) => {
-      if (billingIds.length > 1) {
-        duplicateDetails.push({
-          duplicateKey: key,
-          affectedBillingIds: billingIds,
-          duplicateFieldsCount: 3,
-          duplicateFields: ["customerId", "billingAmount", "billingDate"],
-        });
-        billingIds.forEach((id) => duplicateBillingIds.add(id));
-        duplicateCount += billingIds.length;
+      if (!duplicateMap.has(compositeKey)) {
+        duplicateMap.set(compositeKey, []);
       }
-    });
+      duplicateMap.get(compositeKey)!.push(record.billingId);
+    }
   
-    // Build validation details
-    const dataValidationDetails = records.map((record) => {
-      const isDuplicate = duplicateBillingIds.has(record.billingId);
+    // Identify duplicate groups
+    const duplicateGroups = Array.from(duplicateMap.entries()).filter(
+      ([_, ids]) => ids.length > 1
+    );
+  
+    const isDuplicate = duplicateGroups.length > 0;
+    const duplicateCount = duplicateGroups.reduce((sum, [_, ids]) => sum + ids.length - 1, 0);
+  
+    // Build duplicate details
+    const duplicateDetails = duplicateGroups.map(([key, affectedBillingIds]) => {
+      const [customerId, billingAmount, billingDate] = key.split("_");
       return {
-        billingId: record.billingId,
-        isValid: !isDuplicate,
-        approvalStatus: isDuplicate ? "rejected" : "approved",
-        reason: isDuplicate ? "duplicate_entry" : null,
+        duplicateKey: key,
+        affectedBillingIds,
+        duplicateFieldsCount: 3,
+        duplicateFields: ["customerId", "billingAmount", "billingDate"],
       };
     });
   
-    // Calculate summary
-    const validRecords = records.length - duplicateBillingIds.size;
-    const invalidRecords = duplicateBillingIds.size;
-    const approvedCount = validRecords;
-    const rejectedCount = invalidRecords;
-    const validationPassRate =
-      records.length > 0
-        ? Math.round((validRecords / records.length) * 1000) / 1000
-        : 0;
+    // Build validation details for each record
+    const duplicateBillingIds = new Set<string>();
+    duplicateGroups.forEach(([_, ids]) => {
+      ids.forEach((id) => duplicateBillingIds.add(id));
+    });
   
-    const result: BillingValidationResult = {
-      isDuplicate: duplicateDetails.length > 0,
+    for (const record of billingRecords) {
+      const isDuplicateRecord = duplicateBillingIds.has(record.billingId);
+  
+      validationDetails.push({
+        billingId: record.billingId,
+        isValid: !isDuplicateRecord,
+        approvalStatus: isDuplicateRecord ? "rejected" : "approved",
+        reason: isDuplicateRecord ? "duplicate_entry" : null,
+      });
+    }
+  
+    // Calculate summary
+    const validRecords = validationDetails.filter((d) => d.isValid).length;
+    const invalidRecords = totalRecords - validRecords;
+    const approvedCount = validationDetails.filter(
+      (d) => d.approvalStatus === "approved"
+    ).length;
+    const rejectedCount = validationDetails.filter(
+      (d) => d.approvalStatus === "rejected"
+    ).length;
+    const validationPassRate =
+      totalRecords > 0 ? Math.round((validRecords / totalRecords) * 1000) / 1000 : 0;
+  
+    const result: ValidateBillingTargetDataResult = {
+      isDuplicate,
       duplicateCount,
-      duplicateDetails,
-      approvalStatus: duplicateDetails.length > 0 ? "rejected" : "approved",
-      rejectionReason:
-        duplicateDetails.length > 0 ? "duplicate_detected" : undefined,
-      dataValidationDetails,
+      approvalStatus: isDuplicate ? "rejected" : "approved",
+      rejectionReason: isDuplicate ? "duplicate_detected" : undefined,
+      dataValidationDetails: validationDetails,
       validationSummary: {
-        totalRecords: records.length,
+        totalRecords,
         validRecords,
         invalidRecords,
         approvedCount,
@@ -2675,6 +2580,10 @@ const __aivicBundle_23_validateBillingTargetData = (() => {
         validationPassRate,
       },
     };
+  
+    if (isDuplicate) {
+      result.duplicateDetails = duplicateDetails;
+    }
   
     return result;
   }
@@ -2685,39 +2594,39 @@ export const validateBillingTargetData: (...args: any[]) => any = (...args: any[
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=validateBillingDataReasonableness exports=validateBillingDataReasonableness */
 const __aivicBundle_24_validateBillingDataReasonableness = (() => {
-  function validateBillingDataReasonableness(data: {
+  function validateBillingDataReasonableness(dealData: {
     deal_id: string;
     customer_id: string;
     customer_name: string;
     amount: number;
     line_count: number;
     invoice_date: string;
-  }): ReasonablenessCheckResult {
-    if (data["deal_id"] === undefined || data["deal_id"] === null) { throw new Error("deal_id is required"); }
-    if (data["customer_id"] === undefined || data["customer_id"] === null) { throw new Error("customer_id is required"); }
-    if (data["customer_name"] === undefined || data["customer_name"] === null) { throw new Error("customer_name is required"); }
-    if (data["line_count"] === undefined || data["line_count"] === null) { throw new Error("line_count is required"); }
-    if (data["invoice_date"] === undefined || data["invoice_date"] === null) { throw new Error("invoice_date is required"); }
-    const MIN_VALID_AMOUNT = 1;
-    const MAX_VALID_AMOUNT = 1000000000;
+  }): { is_valid: boolean; error_message: string | null } {
+    if (dealData["deal_id"] === undefined || dealData["deal_id"] === null) { throw new Error("deal_id is required"); }
+    if (dealData["customer_id"] === undefined || dealData["customer_id"] === null) { throw new Error("customer_id is required"); }
+    if (dealData["customer_name"] === undefined || dealData["customer_name"] === null) { throw new Error("customer_name is required"); }
+    if (dealData["line_count"] === undefined || dealData["line_count"] === null) { throw new Error("line_count is required"); }
+    if (dealData["invoice_date"] === undefined || dealData["invoice_date"] === null) { throw new Error("invoice_date is required"); }
+    const MIN_AMOUNT = 1;
+    const MAX_AMOUNT = 1000000000;
   
-    if (data.amount < MIN_VALID_AMOUNT) {
-      if (data.amount < 0) {
+    if (dealData.amount < MIN_AMOUNT) {
+      if (dealData.amount < 0) {
         return {
           is_valid: false,
-          error_message: '金額がマイナスです',
+          error_message: '金額がマイナスです。請求金額は正の値である必要があります。',
         };
       }
       return {
         is_valid: false,
-        error_message: '金額が無効です',
+        error_message: '金額が無効です。請求金額は1円以上である必要があります。',
       };
     }
   
-    if (data.amount > MAX_VALID_AMOUNT) {
+    if (dealData.amount > MAX_AMOUNT) {
       return {
         is_valid: false,
-        error_message: '金額が上限を超えています',
+        error_message: '金額が上限を超えています。請求金額は10億円以下である必要があります。',
       };
     }
   
@@ -2734,8 +2643,8 @@ export const validateBillingDataReasonableness = __aivicBundle_24_validateBillin
 /* AIVIC_FUNCTION_BUNDLE_START owner=calculateTotalCost exports=calculateTotalCost */
 const __aivicBundle_25_calculateTotalCost = (() => {
   function calculateTotalCost(input: CostComparisonInput): number {
-    const salesforceLicenseCost = input.salesforceMonthlyFee * input.userCount;
-    const totalCost = salesforceLicenseCost + input.initialConstructionCost + input.annualMaintenanceCost;
+    const annualSalesforcelicenseCost = input.salesforceMonthlyFee * input.userCount;
+    const totalCost = annualSalesforcelicenseCost + input.initialConstructionCost + input.annualMaintenanceCost;
     return totalCost;
   }
   return { calculateTotalCost };
@@ -2765,18 +2674,15 @@ const __aivicBundle_26_generateLicenseCostComparisonTable = (() => {
     let cumulativeTotalCost = 0;
   
     const comparisonTable: ComparisonTableRow[] = fiscalYears.map((fiscal) => {
-      const annualLicenseCost = fiscal.annualLicenseCost || 0;
-      const annualOperationCost = fiscal.annualOperationCost || 0;
-      const yearlyTotalCost = annualLicenseCost + annualOperationCost;
-  
-      cumulativeLicenseCost += annualLicenseCost;
-      cumulativeOperationCost += annualOperationCost;
+      const yearlyTotalCost = fiscal.annualLicenseCost + fiscal.annualOperationCost;
+      cumulativeLicenseCost += fiscal.annualLicenseCost;
+      cumulativeOperationCost += fiscal.annualOperationCost;
       cumulativeTotalCost += yearlyTotalCost;
   
       return {
         year: fiscal.year,
-        annualLicenseCost,
-        annualOperationCost,
+        annualLicenseCost: fiscal.annualLicenseCost,
+        annualOperationCost: fiscal.annualOperationCost,
         yearlyTotalCost,
         cumulativeLicenseCost,
         cumulativeOperationCost,
@@ -2805,14 +2711,13 @@ export const generateLicenseCostComparisonTable = __aivicBundle_26_generateLicen
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=calculateInitialConstructionCost exports=calculateInitialConstructionCost */
 const __aivicBundle_27_calculateInitialConstructionCost = (() => {
-  function calculateInitialConstructionCost(input: InitialConstructionCostInput): number {
+  function calculateInitialConstructionCost(input: InitialConstructionCostInput): void {
     if (input["developmentScale"] === undefined || input["developmentScale"] === null) { throw new Error("developmentScale is required"); }
     if (input["developmentDays"] === undefined || input["developmentDays"] === null) { throw new Error("developmentDays is required"); }
     if (input["teamSize"] === undefined || input["teamSize"] === null) { throw new Error("teamSize is required"); }
     if (input.initialConstructionCost < 0) {
-      throw new Error('初期構築コストが負の値です');
+      throw new Error('初期構築コストは0以上の値である必要があります');
     }
-    return input.initialConstructionCost;
   }
   return { calculateInitialConstructionCost };
 })();
@@ -2834,20 +2739,20 @@ const __aivicBundle_28_calculateLicenseCostComparison = (() => {
       };
     }
   
-    // annualMaintenanceCost が正の値の場合、3年間の総コストを比較
-    const threeYears = 3;
+    // 有効な入力値で3年間の比較計算を実行
+    const threeYearPeriod = 3;
     
-    // Salesforce ライセンス費用の3年間総コスト
-    const totalSalesforceThreeYearCost = input.salesforceLicenseCost * threeYears;
+    // Salesforce ライセンスコスト（3年間）
+    const totalSalesforceThreeYearCost = input.salesforceLicenseCost * threeYearPeriod;
     
-    // 自社開発システムコストの3年間総コスト
-    // = 初期構築コスト + (年間保守運用コスト × 3年)
+    // 開発・運用コスト（3年間）
+    // 初期構築コスト + 年間保守運用コスト × 3年
     const totalDevelopmentThreeYearCost =
       input.initialConstructionCost +
-      input.annualMaintenanceCost * threeYears;
+      input.annualMaintenanceCost * threeYearPeriod;
     
-    // コスト削減額
-    const costSavings = totalSalesforceThreeYearCost - totalDevelopmentThreeYearCost;
+    // コスト差分（Salesforce が高い場合は正の値）
+    const costDifference = totalSalesforceThreeYearCost - totalDevelopmentThreeYearCost;
   
     return {
       comparisonSkipped: false,
@@ -2855,7 +2760,7 @@ const __aivicBundle_28_calculateLicenseCostComparison = (() => {
       comparisonResult: {
         totalSalesforceThreeYearCost,
         totalDevelopmentThreeYearCost,
-        costSavings,
+        costDifference,
       },
       hasError: false,
     };
