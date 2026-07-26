@@ -1,91 +1,24 @@
-import { filterPurchaseHistoryByDateRange } from '../../src/logic/it-1';
+import { detectDealStatusAndInvoiceDiscrepancy } from "../../src/logic/it-1784969823049-1-1-1";
 
-describe('顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能', () => {
+describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
   // SCEN-188
-  test('過去購買履歴フィルタリング機能 - 対象期間の設定値が不正な場合、フィルタリング処理がエラーで終了する', () => {
-    const purchaseHistory = [
-      {
-        id: 'PH001',
-        customerId: 'CUST001',
-        purchaseDate: '2023-06-15',
-        amount: 50000,
-      },
-      {
-        id: 'PH002',
-        customerId: 'CUST001',
-        purchaseDate: '2024-01-20',
-        amount: 75000,
-      },
-      {
-        id: 'PH003',
-        customerId: 'CUST001',
-        purchaseDate: '2024-06-10',
-        amount: 120000,
-      },
-    ];
+  test("売上計上予定日と実際の請求日のズレが0日の場合、ズレなしとして判定される", () => {
+    const deal_expected_revenue_date = new Date("2024-01-15T00:00:00Z");
+    const invoice_issued_date = new Date("2024-01-15T00:00:00Z");
+    const deal_status = "受注";
+    const invoice_status = "発行済み";
 
-    // エラーケース 1: 開始日が不正な形式（存在しない日付）
-    expect(() => {
-      filterPurchaseHistoryByDateRange(purchaseHistory, '2024-13-45', '2024-12-31');
-    }).toThrow(/対象期間/);
+    const result = detectDealStatusAndInvoiceDiscrepancy({
+      deal_status: deal_status,
+      deal_expected_revenue_date: deal_expected_revenue_date,
+      invoice_issued_date: invoice_issued_date,
+      invoice_status: invoice_status,
+    });
 
-    // エラーケース 2: 開始日が不正な形式（非日付文字列）
-    expect(() => {
-      filterPurchaseHistoryByDateRange(purchaseHistory, 'invalid', '2024-12-31');
-    }).toThrow(/対象期間/);
-
-    // エラーケース 3: 終了日が開始日より前
-    expect(() => {
-      filterPurchaseHistoryByDateRange(purchaseHistory, '2024-12-31', '2024-01-01');
-    }).toThrow(/開始日/);
-
-    // エラーケース 4: 終了日が不正な形式
-    expect(() => {
-      filterPurchaseHistoryByDateRange(purchaseHistory, '2024-01-01', 'invalid_date');
-    }).toThrow(/対象期間/);
-
-    // 成功ケース: 正しい日付範囲でフィルタリング
-    const result = filterPurchaseHistoryByDateRange(
-      purchaseHistory,
-      '2024-01-01',
-      '2024-12-31'
-    );
-    expect(result).toEqual([
-      {
-        id: 'PH002',
-        customerId: 'CUST001',
-        purchaseDate: '2024-01-20',
-        amount: 75000,
-      },
-      {
-        id: 'PH003',
-        customerId: 'CUST001',
-        purchaseDate: '2024-06-10',
-        amount: 120000,
-      },
-    ]);
-
-    // 成功ケース: 開始日と終了日が同じ
-    const resultSameDate = filterPurchaseHistoryByDateRange(
-      purchaseHistory,
-      '2024-01-20',
-      '2024-01-20'
-    );
-    expect(resultSameDate).toEqual([
-      {
-        id: 'PH002',
-        customerId: 'CUST001',
-        purchaseDate: '2024-01-20',
-        amount: 75000,
-      },
-    ]);
-
-    // 成功ケース: 期間内に購買履歴がない場合
-    const resultEmpty = filterPurchaseHistoryByDateRange(
-      purchaseHistory,
-      '2025-01-01',
-      '2025-12-31'
-    );
-    expect(resultEmpty).toEqual([]);
+    expect(result.discrepancy_days).toBe(0);
+    expect(result.discrepancy_type).toBe("なし");
+    expect(result.reconciliation_status).toBe("正常");
+    expect(result.has_anomaly_flag).toBe(false);
+    expect(result.warning_message).toBe("");
   });
 });

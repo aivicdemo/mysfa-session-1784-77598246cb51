@@ -1,64 +1,41 @@
-import { validateInvoiceAmountAlignment } from '../../src/logic/it-1784969823049-1-1-1';
+import { filterActivityRecordsByType } from "../../src/logic/it-1";
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
+describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
   // SCEN-156
-  test('商談金額と請求金額のズレが検出され、警告メッセージが表示される', () => {
-    const dealRecord = {
-      dealId: 'DEAL-001',
-      customerId: 'CUST-001',
-      dealAmount: 1000000,
-      dealStatus: '受注',
-      dealStatusHistory: [
-        {
-          statusChangeDate: '2024-01-15T10:00:00Z',
-          previousStatus: '提案中',
-          newStatus: '受注',
-        },
-      ],
-    };
+  test("活動記録タイプフィルタリング機能 - 選択されたタイプの活動記録が存在しない場合に空の結果セットが返される", () => {
+    // Arrange: 存在しないタイプを選択したシナリオを設定
+    const activity_records = [
+      {
+        id: "act_001",
+        customer_id: "cust_001",
+        activity_type: "email",
+        activity_date: "2024-01-15T09:00:00Z",
+        description: "顧客メール送付",
+      },
+      {
+        id: "act_002",
+        customer_id: "cust_001",
+        activity_type: "phone",
+        activity_date: "2024-01-14T14:30:00Z",
+        description: "顧客電話対応",
+      },
+      {
+        id: "act_003",
+        customer_id: "cust_001",
+        activity_type: "visit",
+        activity_date: "2024-01-13T11:00:00Z",
+        description: "顧客訪問",
+      },
+    ];
 
-    const invoiceRecord = {
-      invoiceId: 'INV-001',
-      dealId: 'DEAL-001',
-      invoiceAmount: 950000,
-      invoiceIssuedDate: '2024-01-16T09:00:00Z',
-      invoiceStatus: '発行済み',
-      invoiceDetails: [
-        {
-          lineNumber: 1,
-          itemName: '商品A',
-          quantity: 1,
-          unitPrice: 950000,
-          lineAmount: 950000,
-        },
-      ],
-    };
+    const selected_type = "future_type_not_implemented";
 
-    const expectedAmountDifference = dealRecord.dealAmount - invoiceRecord.invoiceAmount;
+    // Act: 存在しないタイプでフィルタリングを実行
+    const result = filterActivityRecordsByType(activity_records, selected_type);
 
-    const result = validateInvoiceAmountAlignment({
-      dealRecord,
-      invoiceRecord,
-    });
-
-    expect(result).toEqual({
-      alignmentStatus: '要確認',
-      hasAmountMismatch: true,
-      amountDifference: expectedAmountDifference,
-      amountDifferencePercentage: (expectedAmountDifference / dealRecord.dealAmount) * 100,
-      warningMessage: `金額ズレ：-${Math.abs(expectedAmountDifference).toLocaleString('ja-JP')}円`,
-      dealId: 'DEAL-001',
-      invoiceId: 'INV-001',
-      dealAmount: 1000000,
-      invoiceAmount: 950000,
-      requiresApprovalReview: true,
-    });
-
-    expect(result.alignmentStatus).toBe('要確認');
-    expect(result.hasAmountMismatch).toBe(true);
-    expect(result.amountDifference).toBe(-50000);
-    expect(result.amountDifferencePercentage).toBe(-5);
-    expect(result.warningMessage).toBe('金額ズレ：-50,000円');
-    expect(result.requiresApprovalReview).toBe(true);
+    // Assert: 空の結果セットが返されることを検証
+    expect(result.records).toEqual([]);
+    expect(result.total_count).toBe(0);
+    expect(result.message).toBe("該当する活動記録がありません");
   });
 });

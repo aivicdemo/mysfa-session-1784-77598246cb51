@@ -1,161 +1,127 @@
-import { describe, it, expect, beforeEach } from "@jest/globals";
-import {
-  aggregateMonthlySalesAndInvoices,
-  validateAggregationConsistency,
-  generateAggregationReport,
-  exportAggregationData,
-} from "../../src/logic/it-1-3";
+import { fetchCustomerHistoryWithCache } from "../../src/logic/it-1";
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
+  // SCEN-158
+  test("キャッシュ有効期限内の場合キャッシュされたデータが返される", async () => {
+    const fetchMock = require("jest-fetch-mock");
+    fetchMock.enableMocks();
+    fetchMock.resetMocks();
 
-  // SCEN-158: [normal] 売上実績・請求状況自動集計機能 - 月次決算対象期間内の請求金額と売上実績の金額が一致する場合、正確に集計される
-  it("should accurately aggregate monthly sales and invoice amounts when they match completely within the settlement period", () => {
-    // Arrange: テストデータの準備
-    const settlement_period_start = new Date("2024-04-01T00:00:00Z");
-    const settlement_period_end = new Date("2024-04-30T23:59:59Z");
+    const customerId = "CUST_20240415001";
+    const cacheValidityMinutes = 5;
+    const firstFetchTimestamp = new Date("2024-04-15T10:00:00Z");
+    const secondFetchTimestamp = new Date("2024-04-15T10:03:00Z");
 
-    const transaction_records = [
+    const mockCustomerData = {
+      customer_id: customerId,
+      customer_name: "テスト顧客A株式会社",
+      industry: "製造業",
+      establishment_date: "2010-05-20",
+    };
+
+    const mockDealHistory = [
       {
-        transaction_id: "TRX001",
-        customer_id: "CUST001",
-        invoice_date: new Date("2024-04-05T10:00:00Z"),
-        invoice_amount: 100000,
-        sales_amount: 100000,
-        invoice_status: "issued",
-        sales_status: "recorded",
+        deal_id: "DEAL_20240401001",
+        deal_name: "システム導入案件",
+        status: "受注",
+        amount: 5000000,
+        deal_date: "2024-04-01",
       },
       {
-        transaction_id: "TRX002",
-        customer_id: "CUST002",
-        invoice_date: new Date("2024-04-12T14:30:00Z"),
-        invoice_amount: 250000,
-        sales_amount: 250000,
-        invoice_status: "issued",
-        sales_status: "recorded",
-      },
-      {
-        transaction_id: "TRX003",
-        customer_id: "CUST003",
-        invoice_date: new Date("2024-04-20T09:15:00Z"),
-        invoice_amount: 150000,
-        sales_amount: 150000,
-        invoice_status: "issued",
-        sales_status: "recorded",
+        deal_id: "DEAL_20240310001",
+        deal_name: "保守契約更新",
+        status: "完了",
+        amount: 500000,
+        deal_date: "2024-03-10",
       },
     ];
 
-    // Act: 月次決算対象期間内の売上実績・請求状況の自動集計を実行
-    const aggregation_result = aggregateMonthlySalesAndInvoices({
-      period_start: settlement_period_start,
-      period_end: settlement_period_end,
-      transactions: transaction_records,
+    const mockActivityRecords = [
+      {
+        activity_id: "ACT_20240410001",
+        activity_type: "訪問",
+        activity_date: "2024-04-10T14:30:00Z",
+        description: "営業成績確認ミーティング",
+        participant: "営業太郎",
+      },
+      {
+        activity_id: "ACT_20240405001",
+        activity_type: "電話",
+        activity_date: "2024-04-05T09:15:00Z",
+        description: "導入スケジュール確認",
+        participant: "営業太郎",
+      },
+    ];
+
+    const mockIssueRecords = [
+      {
+        issue_id: "ISS_20240401001",
+        issue_title: "導入環境構築遅延",
+        status: "解決済み",
+        resolution_date: "2024-04-08T16:45:00Z",
+      },
+    ];
+
+    const expectedFirstResponse = {
+      customer: mockCustomerData,
+      deal_history: mockDealHistory,
+      activity_records: mockActivityRecords,
+      issue_records: mockIssueRecords,
+      record_count: 4,
+      fetch_timestamp: "2024-04-15T10:00:00Z",
+      cache_valid_until: "2024-04-15T10:05:00Z",
+    };
+
+    fetchMock.mockResponseOnce(JSON.stringify(expectedFirstResponse), {
+      status: 200,
     });
 
-    // Assert: 集計結果が正確に計算されていることを検証
-    expect(aggregation_result.total_invoice_amount).toBe(500000);
-    expect(aggregation_result.total_sales_amount).toBe(500000);
-    expect(aggregation_result.transaction_count).toBe(3);
-    expect(aggregation_result.amounts_match).toBe(true);
-    expect(aggregation_result.discrepancy).toBe(0);
+    const firstResult = await fetchCustomerHistoryWithCache({
+      customer_id: customerId,
+      current_timestamp: firstFetchTimestamp,
+      cache_validity_minutes: cacheValidityMinutes,
+    });
 
-    // Assert: 集計結果の請求金額合計と売上実績合計が一致していることを検証
-    expect(aggregation_result.total_invoice_amount).toEqual(
-      aggregation_result.total_sales_amount
+    expect(firstResult).toEqual(expectedFirstResponse);
+    expect(firstResult.customer.customer_id).toBe(customerId);
+    expect(firstResult.deal_history).toHaveLength(2);
+    expect(firstResult.activity_records).toHaveLength(2);
+    expect(firstResult.issue_records).toHaveLength(1);
+    expect(firstResult.record_count).toBe(4);
+    expect(firstResult.cache_valid_until).toBe("2024-04-15T10:05:00Z");
+
+    const firstFetchCallCount = fetchMock.mock.calls.length;
+    expect(firstFetchCallCount).toBe(1);
+
+    const secondResult = await fetchCustomerHistoryWithCache({
+      customer_id: customerId,
+      current_timestamp: secondFetchTimestamp,
+      cache_validity_minutes: cacheValidityMinutes,
+    });
+
+    expect(secondResult).toEqual(expectedFirstResponse);
+    expect(secondResult.customer.customer_id).toBe(customerId);
+    expect(secondResult.deal_history).toHaveLength(2);
+    expect(secondResult.activity_records).toHaveLength(2);
+    expect(secondResult.issue_records).toHaveLength(1);
+    expect(secondResult.record_count).toBe(4);
+    expect(secondResult.cache_valid_until).toBe("2024-04-15T10:05:00Z");
+
+    const secondFetchCallCount = fetchMock.mock.calls.length;
+    expect(secondFetchCallCount).toBe(1);
+
+    expect(secondResult).toBe(firstResult);
+    expect(secondResult.fetch_timestamp).toBe(firstResult.fetch_timestamp);
+    expect(secondResult.deal_history[0].deal_id).toBe(
+      firstResult.deal_history[0].deal_id
+    );
+    expect(secondResult.activity_records[0].activity_id).toBe(
+      firstResult.activity_records[0].activity_id
+    );
+    expect(secondResult.issue_records[0].issue_id).toBe(
+      firstResult.issue_records[0].issue_id
     );
 
-    // Act: 集計結果の整合性を検証
-    const consistency_validation = validateAggregationConsistency(
-      aggregation_result
-    );
-
-    // Assert: 整合性検証が成功することを検証
-    expect(consistency_validation.is_consistent).toBe(true);
-    expect(consistency_validation.validation_status).toBe("passed");
-
-    // Act: 明細行が正確に含まれていることを確認するため、ドリルダウン可能な詳細結果を生成
-    const detail_breakdown = aggregation_result.transaction_details;
-
-    // Assert: 各取引レコードが正確に含まれていることを検証
-    expect(detail_breakdown).toHaveLength(3);
-    expect(detail_breakdown[0]).toEqual({
-      transaction_id: "TRX001",
-      customer_id: "CUST001",
-      invoice_amount: 100000,
-      sales_amount: 100000,
-      match_status: "matched",
-    });
-    expect(detail_breakdown[1]).toEqual({
-      transaction_id: "TRX002",
-      customer_id: "CUST002",
-      invoice_amount: 250000,
-      sales_amount: 250000,
-      match_status: "matched",
-    });
-    expect(detail_breakdown[2]).toEqual({
-      transaction_id: "TRX003",
-      customer_id: "CUST003",
-      invoice_amount: 150000,
-      sales_amount: 150000,
-      match_status: "matched",
-    });
-
-    // Act: 集計結果レポートを生成
-    const report = generateAggregationReport({
-      aggregation_result: aggregation_result,
-      period_start: settlement_period_start,
-      period_end: settlement_period_end,
-      include_details: true,
-    });
-
-    // Assert: レポートが正しく生成されていることを検証
-    expect(report.report_title).toBe("月次売上実績・請求状況集計報告");
-    expect(report.settlement_period_start).toEqual(settlement_period_start);
-    expect(report.settlement_period_end).toEqual(settlement_period_end);
-    expect(report.summary_section).toEqual({
-      total_invoice_amount: 500000,
-      total_sales_amount: 500000,
-      transaction_count: 3,
-      amounts_match: true,
-      discrepancy: 0,
-    });
-    expect(report.details_section).toHaveLength(3);
-
-    // Act: CSV形式でエクスポート
-    const csv_export_result = exportAggregationData({
-      data: report,
-      format: "csv",
-      filename: "aggregation_report_202404.csv",
-    });
-
-    // Assert: CSV エクスポートが成功したことを検証
-    expect(csv_export_result.export_status).toBe("success");
-    expect(csv_export_result.format).toBe("csv");
-    expect(csv_export_result.file_size).toBeGreaterThan(0);
-
-    // Act: PDF形式でエクスポート
-    const pdf_export_result = exportAggregationData({
-      data: report,
-      format: "pdf",
-      filename: "aggregation_report_202404.pdf",
-    });
-
-    // Assert: PDF エクスポートが成功したことを検証
-    expect(pdf_export_result.export_status).toBe("success");
-    expect(pdf_export_result.format).toBe("pdf");
-    expect(pdf_export_result.file_size).toBeGreaterThan(0);
-
-    // Act: エクスポートされたデータの集計値を検証
-    const exported_summary = csv_export_result.exported_summary;
-
-    // Assert: エクスポートされたデータの集計値が画面表示値と一致することを検証
-    expect(exported_summary.total_invoice_amount).toBe(500000);
-    expect(exported_summary.total_sales_amount).toBe(500000);
-    expect(exported_summary.transaction_count).toBe(3);
-    expect(exported_summary.total_invoice_amount).toEqual(
-      exported_summary.total_sales_amount
-    );
+    fetchMock.disableMocks();
   });
 });

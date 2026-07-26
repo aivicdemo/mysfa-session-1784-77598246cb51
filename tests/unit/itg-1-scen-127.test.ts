@@ -1,45 +1,15 @@
-import { generateMonthlyReportWithCustomerDetails } from "../../src/logic/it-1-3";
+import { updateDealStatusToContracted } from "../../src/logic/it-1784969823049-2-1-1";
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
-  // SCEN-127
-  test("顧客別詳細がない場合も報告書が生成される", () => {
-    const input = {
-      year: 2024,
-      month: 3,
-      salesData: {
-        totalRevenue: 1500000,
-        orderCount: 5,
-        progressRate: 0.6,
-      },
-      customerDetails: [],
-      generatedAt: new Date("2024-03-31T23:59:59Z"),
+describe("商談レコードの進捗ステータスと提案内容の入力・保存機能", () => {
+  test("// SCEN-127: [error] 商談ステータス更新・請求データ紐付け機能 - 明細データが空の商談を『成約』に更新すると拒否される", () => {
+    const dealRecord = {
+      dealId: "DL-001",
+      customerId: "CUST-001",
+      dealAmount: 500000,
+      dealStatus: "提案中",
+      invoiceDetails: [],
     };
 
-    const result = generateMonthlyReportWithCustomerDetails(input);
-
-    expect(result).toEqual({
-      reportId: expect.any(String),
-      period: "2024-03",
-      totalRevenue: 1500000,
-      orderCount: 5,
-      progressRate: 0.6,
-      customerSection: "該当データなし",
-      fileName: expect.stringMatching(/^monthly_report_2024_03_/),
-      status: "generated",
-      format: "PDF",
-      layoutValid: true,
-      dataComplete: true,
-    });
-
-    expect(result.reportId).toBeTruthy();
-    expect(result.reportId.length).toBeGreaterThan(0);
-    expect(result.fileName).toMatch(/\.pdf$/);
-    expect(result.totalRevenue).toBe(1500000);
-    expect(result.orderCount).toBe(5);
-    expect(result.progressRate).toBe(0.6);
-    expect(result.status).toBe("generated");
-    expect(result.format).toBe("PDF");
-    expect(result.layoutValid).toBe(true);
-    expect(result.dataComplete).toBe(true);
+    expect(() => updateDealStatusToContracted(dealRecord)).toThrow(/明細/);
   });
 });

@@ -1,38 +1,33 @@
-import { filterPurchaseHistoryByPeriod } from '../../src/logic/it-1';
+import { detectAndResolveDelayedDeals } from '../../src/logic/it-1784969823049-1-1-1';
 
-describe('顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能', () => {
+describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
   // SCEN-186
-  test('過去購買履歴フィルタリング機能 - 対象期間内に購買履歴が存在しない場合、空の一覧が表示される', () => {
-    const purchaseHistory = [
-      {
-        id: 'purchase_001',
-        customerId: 'cust_001',
-        purchaseDate: new Date('2021-06-15T10:00:00Z'),
-        amount: 50000,
-      },
-      {
-        id: 'purchase_002',
-        customerId: 'cust_001',
-        purchaseDate: new Date('2021-08-20T14:30:00Z'),
-        amount: 75000,
-      },
-    ];
+  test('遅延案件の顧客対応完了後、商談ステータスと請求書発行日が一致することを確認する', () => {
+    const input = {
+      dealId: 'DEAL-2024-00001',
+      customerId: 'CUST-001',
+      dealStatus: 'OVERDUE',
+      dealAmount: 500000,
+      expectedBillingDate: new Date('2024-01-15T00:00:00Z'),
+      actualBillingDate: new Date('2024-02-10T00:00:00Z'),
+      customerResolutionCompletedAt: new Date('2024-02-10T14:30:00Z'),
+      billingInvoiceNumber: 'INV-2024-001',
+      invoiceIssuedDate: new Date('2024-02-10T14:35:00Z'),
+    };
 
-    const filterStartDate = new Date('2020-01-01T00:00:00Z');
-    const filterEndDate = new Date('2020-01-31T23:59:59Z');
+    const result = detectAndResolveDelayedDeals(input);
 
-    const result = filterPurchaseHistoryByPeriod(
-      purchaseHistory,
-      filterStartDate,
-      filterEndDate
-    );
-
-    expect(result).toEqual({
-      filteredItems: [],
-      message: '該当するデータがありません',
-      count: 0,
-    });
-    expect(result.filteredItems.length).toBe(0);
-    expect(result.count).toBe(0);
+    expect(result.dealId).toBe('DEAL-2024-00001');
+    expect(result.dealStatus).toBe('COMPLETED');
+    expect(result.dealStatusUpdatedAt).toEqual(new Date('2024-02-10T14:30:00Z'));
+    expect(result.invoiceIssuedDate).toEqual(new Date('2024-02-10T14:35:00Z'));
+    expect(result.statusBillingDateMismatch).toBe(false);
+    expect(result.delayDetected).toBe(false);
+    expect(result.syncStatus).toBe('SYNCHRONIZED');
+    expect(result.discrepancyResolved).toBe(true);
+    expect(result.customerAmount).toBe(500000);
+    expect(result.billingAmount).toBe(500000);
+    expect(result.isResolved).toBe(true);
+    expect(result.resolutionTimestamp).toEqual(new Date('2024-02-10T14:35:00Z'));
   });
 });

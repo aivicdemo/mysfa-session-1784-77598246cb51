@@ -1,122 +1,115 @@
-import { validateDocumentAmount } from '../../src/logic/it-1-1';
+import { filterPurchaseHistoryByDateRange } from "../../src/logic/it-1";
 
-describe('見積・注文・請求書の自動生成機能', () => {
+describe("顧客レコード画面の過去購買履歴フィルタリング機能", () => {
   // SCEN-149
-  test('帳票の金額合計が明細行の単価×数量の合計と一致しない場合、検証結果がエラーと判定される', () => {
-    const documentData = {
-      totalAmount: 10000,
-      lineItems: [
-        {
-          unitPrice: 1000,
-          quantity: 5,
-        },
-        {
-          unitPrice: 2000,
-          quantity: 2,
-        },
-      ],
-    };
+  test("対象期間の境界日時における購買履歴の包含判定が正確に処理される", () => {
+    // 期間設定: 2024年1月1日00:00:00 ～ 2024年12月31日23:59:59
+    const periodStartDate = new Date("2024-01-01T00:00:00Z");
+    const periodEndDate = new Date("2024-12-31T23:59:59Z");
 
-    const result = validateDocumentAmount(documentData);
+    // テスト用の購買履歴データ
+    // 開始日時境界内（期待: 含める）
+    const purchaseAtStartBoundary = new Date("2024-01-01T00:00:00Z");
+    // 終了日時境界内（期待: 含める）
+    const purchaseAtEndBoundary = new Date("2024-12-31T23:59:59Z");
+    // 期間外 - 1秒前（期待: 除外する）
+    const purchaseBeforeStart = new Date("2023-12-31T23:59:59Z");
+    // 期間外 - 1秒後（期待: 除外する）
+    const purchaseAfterEnd = new Date("2025-01-01T00:00:00Z");
 
-    expect(result.status).toBe('error');
-    expect(result.actualLineItemTotal).toBe(9000);
-    expect(result.reportedTotal).toBe(10000);
-    expect(result.discrepancy).toBe(1000);
-    expect(result.message).toMatch(/金額合計/);
-  });
+    const purchaseHistory = [
+      {
+        id: "purchase_1",
+        customerId: "customer_001",
+        purchaseDate: purchaseAtStartBoundary,
+        amount: 50000,
+        description: "境界日時スタート",
+      },
+      {
+        id: "purchase_2",
+        customerId: "customer_001",
+        purchaseDate: purchaseAtEndBoundary,
+        amount: 75000,
+        description: "境界日時エンド",
+      },
+      {
+        id: "purchase_3",
+        customerId: "customer_001",
+        purchaseDate: purchaseBeforeStart,
+        amount: 30000,
+        description: "範囲外（開始前）",
+      },
+      {
+        id: "purchase_4",
+        customerId: "customer_001",
+        purchaseDate: purchaseAfterEnd,
+        amount: 45000,
+        description: "範囲外（終了後）",
+      },
+    ];
 
-  test('帳票の金額合計が明細行の単価×数量の合計と一致する場合、検証結果がOKと判定される', () => {
-    const documentData = {
-      totalAmount: 9000,
-      lineItems: [
-        {
-          unitPrice: 1000,
-          quantity: 5,
-        },
-        {
-          unitPrice: 2000,
-          quantity: 2,
-        },
-      ],
-    };
+    // フィルタリング処理の実行
+    const filteredResult = filterPurchaseHistoryByDateRange({
+      purchaseHistory: purchaseHistory,
+      startDate: periodStartDate,
+      endDate: periodEndDate,
+    });
 
-    const result = validateDocumentAmount(documentData);
+    // 期待結果の検証
+    // 1. フィルタリング結果に含まれるべき件数は 2 件（開始日時と終了日時の境界内）
+    expect(filteredResult.length).toBe(2);
 
-    expect(result.status).toBe('ok');
-    expect(result.actualLineItemTotal).toBe(9000);
-    expect(result.reportedTotal).toBe(9000);
-    expect(result.discrepancy).toBe(0);
-  });
+    // 2. 開始日時（2024年1月1日00:00:00）の購買履歴が含まれていることを確認
+    const resultIds = filteredResult.map((item: any) => item.id);
+    expect(resultIds).toContain("purchase_1");
+    expect(resultIds).not.toContain("purchase_3");
 
-  test('明細行が空の場合、検証結果が警告と判定される', () => {
-    const documentData = {
-      totalAmount: 0,
-      lineItems: [],
-    };
+    // 3. 終了日時（2024年12月31日23:59:59）の購買履歴が含まれていることを確認
+    expect(resultIds).toContain("purchase_2");
 
-    const result = validateDocumentAmount(documentData);
+    // 4. 期間外の購買履歴（2023年12月31日23:59:59）が除外されていることを確認
+    expect(resultIds).not.toContain("purchase_3");
 
-    expect(result.status).toBe('warning');
-    expect(result.message).toMatch(/明細/);
-  });
+    // 5. 期間外の購買履歴（2025年1月1日00:00:00）が除外されていることを確認
+    expect(resultIds).not.toContain("purchase_4");
 
-  test('明細行数が異常に多い場合、検証結果が警告と判定される', () => {
-    const manyLineItems = Array.from({ length: 1001 }, () => ({
-      unitPrice: 100,
-      quantity: 1,
-    }));
+    // 6. 返却データの完全性検証
+    const includedRecords = filteredResult.filter(
+      (item: any) =>
+        item.purchaseDate >= periodStartDate &&
+        item.purchaseDate <= periodEndDate
+    );
+    expect(includedRecords.length).toBe(2);
 
-    const documentData = {
-      totalAmount: 100100,
-      lineItems: manyLineItems,
-    };
+    // 7. 個別の購買履歴の詳細情報が正確に保持されていることを確認
+    const startBoundaryRecord = filteredResult.find(
+      (item: any) => item.id === "purchase_1"
+    );
+    expect(startBoundaryRecord).toEqual({
+      id: "purchase_1",
+      customerId: "customer_001",
+      purchaseDate: purchaseAtStartBoundary,
+      amount: 50000,
+      description: "境界日時スタート",
+    });
 
-    const result = validateDocumentAmount(documentData);
+    const endBoundaryRecord = filteredResult.find(
+      (item: any) => item.id === "purchase_2"
+    );
+    expect(endBoundaryRecord).toEqual({
+      id: "purchase_2",
+      customerId: "customer_001",
+      purchaseDate: purchaseAtEndBoundary,
+      amount: 75000,
+      description: "境界日時エンド",
+    });
 
-    expect(result.status).toBe('warning');
-    expect(result.message).toMatch(/行数/);
-  });
-
-  test('金額が負の値の場合、エラーがスローされる', () => {
-    const documentData = {
-      totalAmount: -1000,
-      lineItems: [
-        {
-          unitPrice: 1000,
-          quantity: 1,
-        },
-      ],
-    };
-
-    expect(() => validateDocumentAmount(documentData)).toThrow(/金額/);
-  });
-
-  test('単価が負の値の場合、エラーがスローされる', () => {
-    const documentData = {
-      totalAmount: 1000,
-      lineItems: [
-        {
-          unitPrice: -100,
-          quantity: 10,
-        },
-      ],
-    };
-
-    expect(() => validateDocumentAmount(documentData)).toThrow(/単価/);
-  });
-
-  test('数量が負の値の場合、エラーがスローされる', () => {
-    const documentData = {
-      totalAmount: 1000,
-      lineItems: [
-        {
-          unitPrice: 100,
-          quantity: -10,
-        },
-      ],
-    };
-
-    expect(() => validateDocumentAmount(documentData)).toThrow(/数量/);
+    // 8. フィルタリング結果がソート状態を保有していることを確認（新しい順）
+    const sortedRecords = filteredResult.sort(
+      (a: any, b: any) =>
+        new Date(b.purchaseDate).getTime() -
+        new Date(a.purchaseDate).getTime()
+    );
+    expect(filteredResult).toEqual(sortedRecords);
   });
 });

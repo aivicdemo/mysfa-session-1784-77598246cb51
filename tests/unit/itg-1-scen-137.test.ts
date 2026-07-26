@@ -1,33 +1,59 @@
-import { detectBillingDelayAndAddWarningFlag } from '../../src/logic/it-1784969823049-1-1-1';
+import { aggregateMonthlySalesAndBillingStatus } from '../../src/logic/it-1-3';
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-137
-  test('未請求・遅延案件の自動フラグ付与 - 商談ステータス『受注』で請求遅延（予定日超過）の案件に警告フラグが自動付与される', () => {
-    const today = new Date('2024-04-15T00:00:00Z');
-    const pastDate = new Date('2024-04-10T00:00:00Z');
+  test('[normal] 売上実績・請求状況の月次集計機能 - 指定期間内の全商談から売上実績・請求金額・未請求額が正確に集計される', () => {
+    const aggregationPeriodStart = new Date('2024-01-01');
+    const aggregationPeriodEnd = new Date('2024-01-31');
 
-    const deal = {
-      dealId: 'DEAL-001',
-      customerId: 'CUST-001',
-      customerName: 'テスト顧客株式会社',
-      status: '受注',
-      amount: 500000,
-      billingScheduledDate: pastDate,
-      billingActualDate: null,
-      billingAmount: 0,
-      isBillingOverdue: false,
-      warningFlag: false,
-      warningFlagReason: '',
-    };
+    const dealData = [
+      {
+        dealId: 'DEAL001',
+        customerId: 'CUST001',
+        dealStatus: '受注',
+        salesAmount: 1000000,
+        billedAmount: 800000,
+        unbilledAmount: 200000,
+        dealDate: new Date('2024-01-05'),
+      },
+      {
+        dealId: 'DEAL002',
+        customerId: 'CUST002',
+        dealStatus: '受注',
+        salesAmount: 500000,
+        billedAmount: 500000,
+        unbilledAmount: 0,
+        dealDate: new Date('2024-01-15'),
+      },
+      {
+        dealId: 'DEAL003',
+        customerId: 'CUST001',
+        dealStatus: '完了',
+        salesAmount: 750000,
+        billedAmount: 750000,
+        unbilledAmount: 0,
+        dealDate: new Date('2024-01-20'),
+      },
+    ];
 
-    const result = detectBillingDelayAndAddWarningFlag(deal, today);
+    const result = aggregateMonthlySalesAndBillingStatus({
+      periodStart: aggregationPeriodStart,
+      periodEnd: aggregationPeriodEnd,
+      deals: dealData,
+    });
 
-    expect(result.dealId).toBe('DEAL-001');
-    expect(result.status).toBe('受注');
-    expect(result.billingScheduledDate).toEqual(pastDate);
-    expect(result.billingActualDate).toBeNull();
-    expect(result.warningFlag).toBe(true);
-    expect(result.warningFlagReason).toBe('billing_delay');
-    expect(result.isBillingOverdue).toBe(true);
+    const expectedTotalSalesAmount = 2250000;
+    const expectedTotalBilledAmount = 2050000;
+    const expectedTotalUnbilledAmount = 200000;
+
+    expect(result.totalSalesAmount).toBe(expectedTotalSalesAmount);
+    expect(result.totalBilledAmount).toBe(expectedTotalBilledAmount);
+    expect(result.totalUnbilledAmount).toBe(expectedTotalUnbilledAmount);
+    expect(result.totalSalesAmount).toBe(
+      result.totalBilledAmount + result.totalUnbilledAmount
+    );
+    expect(result.dealCount).toBe(3);
+    expect(result.aggregationPeriodStart).toEqual(aggregationPeriodStart);
+    expect(result.aggregationPeriodEnd).toEqual(aggregationPeriodEnd);
   });
 });

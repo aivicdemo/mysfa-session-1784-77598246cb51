@@ -1,31 +1,64 @@
-import { verifyDealAndInvoiceAlignment } from "../../src/logic/it-1784969823049-1-1-1";
+import { filterActivityRecordsByTypes } from '../../src/logic/it-1';
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
-  // SCEN-155
-  test("商談の請求金額が商談金額と完全一致する場合、紐付けが正しいと判定される", () => {
-    const deal_id = "DEAL-001";
-    const deal_amount = 1000000;
-    const invoice_amount = 1000000;
-    const deal_status = "受注";
-    const invoice_issue_date = new Date("2024-04-15T09:00:00Z");
-    const invoice_planned_date = new Date("2024-04-15T09:00:00Z");
+describe('顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能', () => {
+  test('SCEN-155: [normal] 活動記録タイプフィルタリング機能 - 複数の活動記録タイプを同時にフィルタした場合に全てのタイプが正しく表示される', () => {
+    const activity_records = [
+      {
+        id: 'ACT001',
+        customer_id: 'CUST001',
+        activity_type: 'phone',
+        activity_date: '2024-01-15T10:00:00Z',
+        description: 'Phone call with customer'
+      },
+      {
+        id: 'ACT002',
+        customer_id: 'CUST001',
+        activity_type: 'email',
+        activity_date: '2024-01-14T09:30:00Z',
+        description: 'Email sent to customer'
+      },
+      {
+        id: 'ACT003',
+        customer_id: 'CUST001',
+        activity_type: 'visit',
+        activity_date: '2024-01-13T14:00:00Z',
+        description: 'On-site visit'
+      },
+      {
+        id: 'ACT004',
+        customer_id: 'CUST001',
+        activity_type: 'phone',
+        activity_date: '2024-01-12T11:00:00Z',
+        description: 'Follow-up phone call'
+      },
+      {
+        id: 'ACT005',
+        customer_id: 'CUST001',
+        activity_type: 'memo',
+        activity_date: '2024-01-11T08:00:00Z',
+        description: 'Internal memo'
+      }
+    ];
 
-    const input = {
-      deal_id,
-      deal_amount,
-      deal_status,
-      invoice_amount,
-      invoice_issue_date,
-      invoice_planned_date,
-    };
+    const selected_types = ['phone', 'email', 'visit'];
+    const result = filterActivityRecordsByTypes(activity_records, selected_types);
 
-    const result = verifyDealAndInvoiceAlignment(input);
+    expect(result).toHaveLength(4);
+    expect(result[0].id).toBe('ACT001');
+    expect(result[0].activity_type).toBe('phone');
+    expect(result[1].id).toBe('ACT002');
+    expect(result[1].activity_type).toBe('email');
+    expect(result[2].id).toBe('ACT003');
+    expect(result[2].activity_type).toBe('visit');
+    expect(result[3].id).toBe('ACT004');
+    expect(result[3].activity_type).toBe('phone');
 
-    expect(result.alignment_status).toBe("正常");
-    expect(result.deal_amount).toBe(1000000);
-    expect(result.invoice_amount).toBe(1000000);
-    expect(result.amount_difference).toBe(0);
-    expect(result.is_aligned).toBe(true);
-    expect(result.deal_id).toBe("DEAL-001");
+    const activity_types_in_result = result.map((rec) => rec.activity_type);
+    expect(activity_types_in_result).toContain('phone');
+    expect(activity_types_in_result).toContain('email');
+    expect(activity_types_in_result).toContain('visit');
+    expect(activity_types_in_result).not.toContain('memo');
+
+    expect(result.some((rec) => rec.id === 'ACT005')).toBe(false);
   });
 });

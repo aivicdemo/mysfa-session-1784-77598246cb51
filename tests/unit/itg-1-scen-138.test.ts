@@ -1,108 +1,235 @@
-import { flagUnbilledAndDelayedDeals } from '../../src/logic/it-1784969823049-1-1-1';
+import { calculateMonthlyOutstandingAmount } from "../../src/logic/it-1-3";
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
-  // SCEN-138: [error] 未請求・遅延案件の自動フラグ付与 - 商談ステータスが『受注』以外の案件にはフラグが付与されない
-  test('商談ステータスが受注以外の案件にはフラグが付与されない', () => {
-    const deals = [
-      {
-        dealId: 'DEAL-001',
-        customerId: 'CUST-001',
-        dealName: '提案中案件',
-        status: '提案中',
-        amount: 500000,
-        billingStatus: '未請求',
-        createdDate: new Date('2024-01-01T09:00:00Z'),
-        expectedBillingDate: new Date('2024-02-15T09:00:00Z'),
-        actualBillingDate: null,
-        unbilledFlag: false,
-        delayedFlag: false,
-      },
-      {
-        dealId: 'DEAL-002',
-        customerId: 'CUST-002',
-        dealName: '失注案件',
-        status: '失注',
-        amount: 300000,
-        billingStatus: '未請求',
-        createdDate: new Date('2024-01-01T09:00:00Z'),
-        expectedBillingDate: new Date('2024-02-15T09:00:00Z'),
-        actualBillingDate: null,
-        unbilledFlag: false,
-        delayedFlag: false,
-      },
-      {
-        dealId: 'DEAL-003',
-        customerId: 'CUST-003',
-        dealName: '保留中案件',
-        status: '保留中',
-        amount: 200000,
-        billingStatus: '未請求',
-        createdDate: new Date('2024-01-01T09:00:00Z'),
-        expectedBillingDate: new Date('2024-02-15T09:00:00Z'),
-        actualBillingDate: null,
-        unbilledFlag: false,
-        delayedFlag: false,
-      },
-      {
-        dealId: 'DEAL-004',
-        customerId: 'CUST-004',
-        dealName: '検討中案件',
-        status: '検討中',
-        amount: 150000,
-        billingStatus: '未請求',
-        createdDate: new Date('2024-01-01T09:00:00Z'),
-        expectedBillingDate: new Date('2024-02-15T09:00:00Z'),
-        actualBillingDate: null,
-        unbilledFlag: false,
-        delayedFlag: false,
-      },
-      {
-        dealId: 'DEAL-005',
-        customerId: 'CUST-005',
-        dealName: '受注案件',
-        status: '受注',
-        amount: 1000000,
-        billingStatus: '未請求',
-        createdDate: new Date('2024-01-01T09:00:00Z'),
-        expectedBillingDate: new Date('2024-02-15T09:00:00Z'),
-        actualBillingDate: null,
-        unbilledFlag: false,
-        delayedFlag: false,
-      },
-    ];
+describe("売上実績・請求状況の月次集計機能", () => {
+  // SCEN-138
+  test("期間内に部分請求された商談の未請求額が正確に計算される", () => {
+    // ハッピーパス：単一回の部分請求
+    const deal_single_partial = {
+      deal_id: "DEAL-001",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-001",
+          billing_date: "2024-01-10",
+          billing_amount: 600000,
+        },
+      ],
+    };
 
-    const currentDate = new Date('2024-03-20T09:00:00Z');
+    const result_single = calculateMonthlyOutstandingAmount(deal_single_partial);
+    expect(result_single).toBe(400000);
 
-    const result = flagUnbilledAndDelayedDeals(deals, currentDate);
+    // ハッピーパス：複数回の分割請求
+    const deal_multi_partial = {
+      deal_id: "DEAL-002",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-002",
+          billing_date: "2024-01-05",
+          billing_amount: 300000,
+        },
+        {
+          billing_id: "BIL-003",
+          billing_date: "2024-01-15",
+          billing_amount: 400000,
+        },
+      ],
+    };
 
-    // ステータス『提案中』の案件にはフラグが付与されないこと
-    const proposalDeal = result.find((d) => d.dealId === 'DEAL-001');
-    expect(proposalDeal).toBeDefined();
-    expect(proposalDeal?.unbilledFlag).toBe(false);
-    expect(proposalDeal?.delayedFlag).toBe(false);
+    const result_multi = calculateMonthlyOutstandingAmount(deal_multi_partial);
+    expect(result_multi).toBe(300000);
 
-    // ステータス『失注』の案件にはフラグが付与されないこと
-    const lostDeal = result.find((d) => d.dealId === 'DEAL-002');
-    expect(lostDeal).toBeDefined();
-    expect(lostDeal?.unbilledFlag).toBe(false);
-    expect(lostDeal?.delayedFlag).toBe(false);
+    // ハッピーパス：期間内請求と期間外請求の混在
+    const deal_mixed_period = {
+      deal_id: "DEAL-003",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-004",
+          billing_date: "2024-01-10",
+          billing_amount: 500000,
+        },
+        {
+          billing_id: "BIL-005",
+          billing_date: "2024-02-05",
+          billing_amount: 300000,
+        },
+      ],
+    };
 
-    // ステータス『保留中』の案件にはフラグが付与されないこと
-    const holdDeal = result.find((d) => d.dealId === 'DEAL-003');
-    expect(holdDeal).toBeDefined();
-    expect(holdDeal?.unbilledFlag).toBe(false);
-    expect(holdDeal?.delayedFlag).toBe(false);
+    const result_mixed = calculateMonthlyOutstandingAmount(deal_mixed_period);
+    expect(result_mixed).toBe(500000);
 
-    // ステータス『検討中』の案件にはフラグが付与されないこと
-    const considerationDeal = result.find((d) => d.dealId === 'DEAL-004');
-    expect(considerationDeal).toBeDefined();
-    expect(considerationDeal?.unbilledFlag).toBe(false);
-    expect(considerationDeal?.delayedFlag).toBe(false);
+    // ハッピーパス：全額請求（未請求額ゼロ）
+    const deal_fully_billed = {
+      deal_id: "DEAL-004",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-006",
+          billing_date: "2024-01-20",
+          billing_amount: 1000000,
+        },
+      ],
+    };
 
-    // ステータス『受注』の案件には、請求が遅延している場合、フラグが付与されること
-    const orderedDeal = result.find((d) => d.dealId === 'DEAL-005');
-    expect(orderedDeal).toBeDefined();
-    expect(orderedDeal?.unbilledFlag).toBe(true);
-    expect(orderedDeal?.delayedFlag).toBe(true);
+    const result_fully = calculateMonthlyOutstandingAmount(deal_fully_billed);
+    expect(result_fully).toBe(0);
+
+    // ハッピーパス：未請求（請求なし）
+    const deal_unbilled = {
+      deal_id: "DEAL-005",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [],
+    };
+
+    const result_unbilled = calculateMonthlyOutstandingAmount(deal_unbilled);
+    expect(result_unbilled).toBe(1000000);
+
+    // エラーケース：請求額の合計が商談金額を超える場合
+    const deal_over_billed = {
+      deal_id: "DEAL-006",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-007",
+          billing_date: "2024-01-10",
+          billing_amount: 800000,
+        },
+        {
+          billing_id: "BIL-008",
+          billing_date: "2024-01-20",
+          billing_amount: 300000,
+        },
+      ],
+    };
+
+    expect(() =>
+      calculateMonthlyOutstandingAmount(deal_over_billed)
+    ).toThrow(/請求額/);
+
+    // エラーケース：商談金額が負の値
+    const deal_negative_amount = {
+      deal_id: "DEAL-007",
+      deal_amount: -1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [],
+    };
+
+    expect(() =>
+      calculateMonthlyOutstandingAmount(deal_negative_amount)
+    ).toThrow(/商談金額/);
+
+    // エラーケース：請求額が負の値
+    const deal_negative_billing = {
+      deal_id: "DEAL-008",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-009",
+          billing_date: "2024-01-10",
+          billing_amount: -100000,
+        },
+      ],
+    };
+
+    expect(() =>
+      calculateMonthlyOutstandingAmount(deal_negative_billing)
+    ).toThrow(/請求額/);
+
+    // エラーケース：期間開始日が期間終了日より後ろ
+    const deal_invalid_period = {
+      deal_id: "DEAL-009",
+      deal_amount: 1000000,
+      period_start: "2024-01-31",
+      period_end: "2024-01-01",
+      billings: [],
+    };
+
+    expect(() =>
+      calculateMonthlyOutstandingAmount(deal_invalid_period)
+    ).toThrow(/期間/);
+
+    // ハッピーパス：境界値テスト - 期間開始日の請求
+    const deal_boundary_start = {
+      deal_id: "DEAL-010",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-010",
+          billing_date: "2024-01-01",
+          billing_amount: 250000,
+        },
+      ],
+    };
+
+    const result_boundary_start =
+      calculateMonthlyOutstandingAmount(deal_boundary_start);
+    expect(result_boundary_start).toBe(750000);
+
+    // ハッピーパス：境界値テスト - 期間終了日の請求
+    const deal_boundary_end = {
+      deal_id: "DEAL-011",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-011",
+          billing_date: "2024-01-31",
+          billing_amount: 250000,
+        },
+      ],
+    };
+
+    const result_boundary_end =
+      calculateMonthlyOutstandingAmount(deal_boundary_end);
+    expect(result_boundary_end).toBe(750000);
+
+    // ハッピーパス：複数回の分割請求で3回以上
+    const deal_three_partial = {
+      deal_id: "DEAL-012",
+      deal_amount: 1000000,
+      period_start: "2024-01-01",
+      period_end: "2024-01-31",
+      billings: [
+        {
+          billing_id: "BIL-012",
+          billing_date: "2024-01-05",
+          billing_amount: 200000,
+        },
+        {
+          billing_id: "BIL-013",
+          billing_date: "2024-01-15",
+          billing_amount: 300000,
+        },
+        {
+          billing_id: "BIL-014",
+          billing_date: "2024-01-25",
+          billing_amount: 250000,
+        },
+      ],
+    };
+
+    const result_three = calculateMonthlyOutstandingAmount(deal_three_partial);
+    expect(result_three).toBe(250000);
   });
 });

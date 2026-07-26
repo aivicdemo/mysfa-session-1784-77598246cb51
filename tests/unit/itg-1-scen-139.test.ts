@@ -1,29 +1,91 @@
-import { detectUnbilledAndDelayedCases } from '../../src/logic/it-1784969823049-1-1-1';
+import { aggregateMonthlySalesAndBilling } from '../../src/logic/it-1-3';
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
-  // SCEN-139
-  test('請求予定日と実発行日が同日の場合、未請求・遅延フラグが付与されない', () => {
-    const dealId = 'DEAL-001';
-    const customerId = 'CUST-001';
-    const billingPlannedDate = '2024-04-15';
-    const billingActualDate = '2024-04-15';
-    const dealAmount = 100000;
-    const dealStatus = '受注';
+describe('売上実績・請求状況の月次集計機能', () => {
+  // SCEN-139: [edge] 売上実績・請求状況の月次集計機能 - 集計対象期間の開始日と終了日の境界値における商談が正確に含まれる
+  test('should accurately include deals on start and end date boundaries during monthly aggregation', () => {
+    const aggregationStartDate = new Date('2024-01-01T00:00:00Z');
+    const aggregationEndDate = new Date('2024-01-31T23:59:59Z');
 
-    const input = {
-      dealId,
-      customerId,
-      dealStatus,
-      dealAmount,
-      billingPlannedDate,
-      billingActualDate,
-    };
+    const deals = [
+      {
+        dealId: 'DEAL-001',
+        customerId: 'CUST-001',
+        status: 'completed',
+        amount: 100000,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+      },
+      {
+        dealId: 'DEAL-002',
+        customerId: 'CUST-002',
+        status: 'completed',
+        amount: 250000,
+        createdAt: new Date('2024-01-31T23:59:59Z'),
+      },
+      {
+        dealId: 'DEAL-003',
+        customerId: 'CUST-003',
+        status: 'completed',
+        amount: 150000,
+        createdAt: new Date('2023-12-31T23:59:59Z'),
+      },
+      {
+        dealId: 'DEAL-004',
+        customerId: 'CUST-004',
+        status: 'completed',
+        amount: 200000,
+        createdAt: new Date('2024-02-01T00:00:00Z'),
+      },
+    ];
 
-    const result = detectUnbilledAndDelayedCases(input);
+    const result = aggregateMonthlySalesAndBilling({
+      deals: deals,
+      startDate: aggregationStartDate,
+      endDate: aggregationEndDate,
+    });
 
-    expect(result.dealId).toBe('DEAL-001');
-    expect(result.hasUnbilledFlag).toBe(false);
-    expect(result.hasDelayedFlag).toBe(false);
-    expect(result.daysDifference).toBe(0);
+    expect(result.includedDealsCount).toBe(2);
+    expect(result.totalSalesAmount).toBe(350000);
+    expect(result.includedDealIds).toEqual(['DEAL-001', 'DEAL-002']);
+    expect(result.excludedDealIds).toEqual(['DEAL-003', 'DEAL-004']);
+
+    const includedDealDetails = result.dealDetails.filter(
+      (detail) => detail.isIncluded === true
+    );
+    expect(includedDealDetails).toHaveLength(2);
+
+    const deal001Detail = includedDealDetails.find(
+      (d) => d.dealId === 'DEAL-001'
+    );
+    expect(deal001Detail).toBeDefined();
+    expect(deal001Detail?.amount).toBe(100000);
+    expect(deal001Detail?.createdAt).toEqual(
+      new Date('2024-01-01T00:00:00Z')
+    );
+
+    const deal002Detail = includedDealDetails.find(
+      (d) => d.dealId === 'DEAL-002'
+    );
+    expect(deal002Detail).toBeDefined();
+    expect(deal002Detail?.amount).toBe(250000);
+    expect(deal002Detail?.createdAt).toEqual(
+      new Date('2024-01-31T23:59:59Z')
+    );
+
+    const excludedDealDetails = result.dealDetails.filter(
+      (detail) => detail.isIncluded === false
+    );
+    expect(excludedDealDetails).toHaveLength(2);
+
+    const deal003Detail = excludedDealDetails.find(
+      (d) => d.dealId === 'DEAL-003'
+    );
+    expect(deal003Detail).toBeDefined();
+    expect(deal003Detail?.reason).toMatch(/before/i);
+
+    const deal004Detail = excludedDealDetails.find(
+      (d) => d.dealId === 'DEAL-004'
+    );
+    expect(deal004Detail).toBeDefined();
+    expect(deal004Detail?.reason).toMatch(/after/i);
   });
 });

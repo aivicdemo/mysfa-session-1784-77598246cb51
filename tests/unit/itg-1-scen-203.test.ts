@@ -1,50 +1,116 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { searchCustomersByPermission } from '../../src/logic/it-1';
+import { extractDealDataByConditions } from '../../src/logic/it-1-1';
 
-const fetchMock = require('jest-fetch-mock');
+describe('見積・注文・請求書の自動生成と商談ステータス紐付け', () => {
+  // SCEN-203
+  test('抽出条件による請求対象データの絞り込み機能 - ステータス・金額・期間の抽出条件に完全に合致する商談成約データが抽出される', () => {
+    const deal_data_list = [
+      {
+        deal_id: 'DEAL001',
+        customer_id: 'CUST001',
+        customer_name: 'ABC Corporation',
+        deal_amount: 1500000,
+        deal_status: '成約',
+        deal_date: new Date('2024-02-15T10:00:00Z'),
+      },
+      {
+        deal_id: 'DEAL002',
+        customer_id: 'CUST002',
+        customer_name: 'XYZ Inc',
+        deal_amount: 3000000,
+        deal_status: '成約',
+        deal_date: new Date('2024-01-20T14:30:00Z'),
+      },
+      {
+        deal_id: 'DEAL003',
+        customer_id: 'CUST003',
+        customer_name: 'DEF Ltd',
+        deal_amount: 800000,
+        deal_status: '成約',
+        deal_date: new Date('2024-03-10T09:15:00Z'),
+      },
+      {
+        deal_id: 'DEAL004',
+        customer_id: 'CUST004',
+        customer_name: 'GHI Co',
+        deal_amount: 5500000,
+        deal_status: '成約',
+        deal_date: new Date('2024-02-28T16:45:00Z'),
+      },
+      {
+        deal_id: 'DEAL005',
+        customer_id: 'CUST005',
+        customer_name: 'JKL Group',
+        deal_amount: 2500000,
+        deal_status: '提案中',
+        deal_date: new Date('2024-02-05T11:00:00Z'),
+      },
+      {
+        deal_id: 'DEAL006',
+        customer_id: 'CUST006',
+        customer_name: 'MNO Partners',
+        deal_amount: 2000000,
+        deal_status: '成約',
+        deal_date: new Date('2024-04-15T13:20:00Z'),
+      },
+      {
+        deal_id: 'DEAL007',
+        customer_id: 'CUST007',
+        customer_name: 'PQR Solutions',
+        deal_amount: 4000000,
+        deal_status: '成約',
+        deal_date: new Date('2024-03-25T10:10:00Z'),
+      },
+    ];
 
-describe('顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能', () => {
-  beforeEach(() => {
-    fetchMock.resetMocks();
-  });
-
-  afterEach(() => {
-    fetchMock.resetMocks();
-  });
-
-  // SCEN-203: [edge] 顧客検索時の権限ベースフィルタリング機能 - 担当営業が0件の場合に空の配列が返される
-  it('should return empty array when logged-in user has no assigned customers', async () => {
-    const user_id = 'user_001';
-    const user_role = 'sales';
-    const search_query = '';
-
-    const mock_api_response = {
-      customers: [],
-      message: '該当する顧客がありません',
-      total_count: 0,
+    const extraction_criteria = {
+      status_filter: '成約',
+      min_amount: 1000000,
+      max_amount: 5000000,
+      start_date: new Date('2024-01-01T00:00:00Z'),
+      end_date: new Date('2024-03-31T23:59:59Z'),
     };
 
-    fetchMock.mockResponseOnce(JSON.stringify(mock_api_response), {
-      status: 200,
+    const result = extractDealDataByConditions(deal_data_list, extraction_criteria);
+
+    expect(result).toEqual([
+      {
+        deal_id: 'DEAL001',
+        customer_id: 'CUST001',
+        customer_name: 'ABC Corporation',
+        deal_amount: 1500000,
+        deal_status: '成約',
+        deal_date: new Date('2024-02-15T10:00:00Z'),
+      },
+      {
+        deal_id: 'DEAL002',
+        customer_id: 'CUST002',
+        customer_name: 'XYZ Inc',
+        deal_amount: 3000000,
+        deal_status: '成約',
+        deal_date: new Date('2024-01-20T14:30:00Z'),
+      },
+      {
+        deal_id: 'DEAL007',
+        customer_id: 'CUST007',
+        customer_name: 'PQR Solutions',
+        deal_amount: 4000000,
+        deal_status: '成約',
+        deal_date: new Date('2024-03-25T10:10:00Z'),
+      },
+    ]);
+
+    expect(result.length).toBe(3);
+
+    result.forEach((deal) => {
+      expect(deal.deal_status).toBe('成約');
+      expect(deal.deal_amount).toBeGreaterThanOrEqual(1000000);
+      expect(deal.deal_amount).toBeLessThanOrEqual(5000000);
+      expect(deal.deal_date.getTime()).toBeGreaterThanOrEqual(
+        extraction_criteria.start_date.getTime()
+      );
+      expect(deal.deal_date.getTime()).toBeLessThanOrEqual(
+        extraction_criteria.end_date.getTime()
+      );
     });
-
-    const result = await searchCustomersByPermission(
-      user_id,
-      user_role,
-      search_query
-    );
-
-    expect(result).toEqual({
-      customers: [],
-      message: '該当する顧客がありません',
-      total_count: 0,
-    });
-    expect(result.customers).toHaveLength(0);
-    expect(result.total_count).toBe(0);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const call_args = fetchMock.mock.calls[0];
-    expect(call_args[0]).toContain('user_id=user_001');
-    expect(call_args[0]).toContain('role=sales');
   });
 });

@@ -1,112 +1,144 @@
-import { filterActivitiesByType } from "../../src/logic/it-1";
+import { detectUnbilledAndDelayedDeals } from '../../src/logic/it-1-3';
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
-  // SCEN-193
-  test("活動記録タイプフィルタリング機能 - 選択されたタイプ（メール・電話・訪問等）の活動記録のみが時系列で表示される", () => {
-    const activities = [
-      {
-        id: "activity_001",
-        type: "email",
-        customerId: "customer_001",
-        description: "顧客への初回提案メール送信",
-        createdAt: new Date("2024-01-10T14:30:00Z"),
-      },
-      {
-        id: "activity_002",
-        type: "phone",
-        customerId: "customer_001",
-        description: "顧客との電話打ち合わせ",
-        createdAt: new Date("2024-01-12T10:00:00Z"),
-      },
-      {
-        id: "activity_003",
-        type: "visit",
-        customerId: "customer_001",
-        description: "顧客先での対面ミーティング",
-        createdAt: new Date("2024-01-15T09:00:00Z"),
-      },
-      {
-        id: "activity_004",
-        type: "email",
-        customerId: "customer_001",
-        description: "提案内容に関するフォローアップメール",
-        createdAt: new Date("2024-01-20T16:45:00Z"),
-      },
-      {
-        id: "activity_005",
-        type: "phone",
-        customerId: "customer_001",
-        description: "最終確認電話",
-        createdAt: new Date("2024-01-25T11:15:00Z"),
-      },
-      {
-        id: "activity_006",
-        type: "visit",
-        customerId: "customer_001",
-        description: "契約書签署の対面対応",
-        createdAt: new Date("2024-01-28T13:30:00Z"),
-      },
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-193: [edge] 月次決算時の未請求・遅延案件の段階的検出と対応SLA管理機能 - 期限当日（SLA境界値）の案件は正しいSLAレベルに分類される
+  test('SLA期限日が本日（当日）の未請求・遅延案件は、正しいSLAレベル（境界値）に分類され、一貫性が保たれる', () => {
+    const today = new Date('2024-04-15T09:00:00Z');
+    const systemCurrentDate = new Date('2024-04-15T09:00:00Z');
+
+    // テスト対象データ: SLA期限が本日（当日）の未請求案件
+    const unbilledDealOnBoundary = {
+      deal_id: 'DEAL001',
+      customer_id: 'CUST001',
+      status: '受注',
+      amount: 500000,
+      invoice_issued: false,
+      invoice_due_date: today,
+      sla_deadline_date: today,
+      invoice_issue_date: null,
+      customer_name: 'テスト顧客A',
+    };
+
+    // テスト対象データ: SLA期限が本日（当日）の遅延案件
+    const delayedDealOnBoundary = {
+      deal_id: 'DEAL002',
+      customer_id: 'CUST002',
+      status: '受注',
+      amount: 300000,
+      invoice_issued: true,
+      invoice_due_date: new Date('2024-04-14T09:00:00Z'),
+      sla_deadline_date: today,
+      invoice_issue_date: new Date('2024-04-12T09:00:00Z'),
+      customer_name: 'テスト顧客B',
+    };
+
+    // テスト対象データ: 既に期限を過ぎた遅延案件（比較用）
+    const delayedDealPastDeadline = {
+      deal_id: 'DEAL003',
+      customer_id: 'CUST003',
+      status: '受注',
+      amount: 200000,
+      invoice_issued: true,
+      invoice_due_date: new Date('2024-04-13T09:00:00Z'),
+      sla_deadline_date: new Date('2024-04-14T09:00:00Z'),
+      invoice_issue_date: new Date('2024-04-10T09:00:00Z'),
+      customer_name: 'テスト顧客C',
+    };
+
+    const deals = [
+      unbilledDealOnBoundary,
+      delayedDealOnBoundary,
+      delayedDealPastDeadline,
     ];
 
-    // メールタイプでフィルタリング
-    const emailFiltered = filterActivitiesByType(activities, "email");
-
-    expect(emailFiltered).toHaveLength(2);
-    expect(emailFiltered[0].id).toBe("activity_004");
-    expect(emailFiltered[0].type).toBe("email");
-    expect(emailFiltered[0].createdAt).toEqual(new Date("2024-01-20T16:45:00Z"));
-    expect(emailFiltered[1].id).toBe("activity_001");
-    expect(emailFiltered[1].type).toBe("email");
-    expect(emailFiltered[1].createdAt).toEqual(new Date("2024-01-10T14:30:00Z"));
-
-    // 時系列順序確認（新しい順）
-    expect(emailFiltered[0].createdAt.getTime()).toBeGreaterThan(
-      emailFiltered[1].createdAt.getTime()
+    // 第1回実行: 月次決算時の段階的検出処理
+    const detectionResult1 = detectUnbilledAndDelayedDeals(
+      deals,
+      systemCurrentDate,
     );
 
-    // 電話タイプでフィルタリング
-    const phoneFiltered = filterActivitiesByType(activities, "phone");
+    // 未請求案件が正しく検出される
+    const unbilledDeals1 = detectionResult1.unbilled_deals;
+    expect(unbilledDeals1.length).toBe(1);
+    expect(unbilledDeals1[0].deal_id).toBe('DEAL001');
+    expect(unbilledDeals1[0].sla_level).toBe('警告段階');
 
-    expect(phoneFiltered).toHaveLength(2);
-    expect(phoneFiltered[0].id).toBe("activity_005");
-    expect(phoneFiltered[0].type).toBe("phone");
-    expect(phoneFiltered[0].createdAt).toEqual(new Date("2024-01-25T11:15:00Z"));
-    expect(phoneFiltered[1].id).toBe("activity_002");
-    expect(phoneFiltered[1].type).toBe("phone");
-    expect(phoneFiltered[1].createdAt).toEqual(new Date("2024-01-12T10:00:00Z"));
+    // 遅延案件が正しく分類される
+    const delayedDeals1 = detectionResult1.delayed_deals;
+    expect(delayedDeals1.length).toBe(2);
 
-    // 時系列順序確認（新しい順）
-    expect(phoneFiltered[0].createdAt.getTime()).toBeGreaterThan(
-      phoneFiltered[1].createdAt.getTime()
+    // SLA期限が本日（当日）の遅延案件は「警告段階」
+    const onBoundaryDelayed = delayedDeals1.find(
+      (d) => d.deal_id === 'DEAL002',
+    );
+    expect(onBoundaryDelayed).toBeDefined();
+    expect(onBoundaryDelayed?.sla_level).toBe('警告段階');
+
+    // SLA期限を超過している遅延案件は「超過段階」
+    const pastDeadlineDelayed = delayedDeals1.find(
+      (d) => d.deal_id === 'DEAL003',
+    );
+    expect(pastDeadlineDelayed).toBeDefined();
+    expect(pastDeadlineDelayed?.sla_level).toBe('超過段階');
+
+    // 第2回実行: 一貫性を確認（複数回実行による分類結果の一貫性）
+    const detectionResult2 = detectUnbilledAndDelayedDeals(
+      deals,
+      systemCurrentDate,
     );
 
-    // 訪問タイプでフィルタリング
-    const visitFiltered = filterActivitiesByType(activities, "visit");
+    const unbilledDeals2 = detectionResult2.unbilled_deals;
+    expect(unbilledDeals2.length).toBe(1);
+    expect(unbilledDeals2[0].deal_id).toBe('DEAL001');
+    expect(unbilledDeals2[0].sla_level).toBe('警告段階');
 
-    expect(visitFiltered).toHaveLength(2);
-    expect(visitFiltered[0].id).toBe("activity_006");
-    expect(visitFiltered[0].type).toBe("visit");
-    expect(visitFiltered[0].createdAt).toEqual(new Date("2024-01-28T13:30:00Z"));
-    expect(visitFiltered[1].id).toBe("activity_003");
-    expect(visitFiltered[1].type).toBe("visit");
-    expect(visitFiltered[1].createdAt).toEqual(new Date("2024-01-15T09:00:00Z"));
+    const delayedDeals2 = detectionResult2.delayed_deals;
+    expect(delayedDeals2.length).toBe(2);
 
-    // 時系列順序確認（新しい順）
-    expect(visitFiltered[0].createdAt.getTime()).toBeGreaterThan(
-      visitFiltered[1].createdAt.getTime()
+    const onBoundaryDelayed2 = delayedDeals2.find(
+      (d) => d.deal_id === 'DEAL002',
+    );
+    expect(onBoundaryDelayed2?.sla_level).toBe('警告段階');
+
+    const pastDeadlineDelayed2 = delayedDeals2.find(
+      (d) => d.deal_id === 'DEAL003',
+    );
+    expect(pastDeadlineDelayed2?.sla_level).toBe('超過段階');
+
+    // SLA対応履歴ログが正確に記録されている
+    expect(detectionResult1.sla_audit_log).toBeDefined();
+    expect(detectionResult1.sla_audit_log.length).toBeGreaterThan(0);
+
+    // 期限当日時点での判定ロジックが正確に記録
+    const onBoundaryAuditLog = detectionResult1.sla_audit_log.find(
+      (log) => log.deal_id === 'DEAL001',
+    );
+    expect(onBoundaryAuditLog).toBeDefined();
+    expect(onBoundaryAuditLog?.judgment_date).toEqual(systemCurrentDate);
+    expect(onBoundaryAuditLog?.sla_deadline_date).toEqual(today);
+    expect(onBoundaryAuditLog?.sla_level_determined).toBe('警告段階');
+    expect(onBoundaryAuditLog?.days_remaining).toBe(0);
+
+    // 上位段階への誤分類がされていない（未請求案件が「超過段階」に分類されない）
+    expect(unbilledDeals1.every((d) => d.sla_level !== '超過段階')).toBe(true);
+
+    // 下位段階への誤分類がされていない（遅延案件DEAL003が「警告段階」に分類されない）
+    expect(pastDeadlineDelayed?.sla_level).not.toBe('警告段階');
+
+    // 第3回実行: 複数回の処理実行で分類結果の一貫性を確認
+    const detectionResult3 = detectUnbilledAndDelayedDeals(
+      deals,
+      systemCurrentDate,
     );
 
-    // すべてのフィルタ結果が対象タイプのみであることを確認
-    emailFiltered.forEach((activity) => {
-      expect(activity.type).toBe("email");
-    });
-
-    phoneFiltered.forEach((activity) => {
-      expect(activity.type).toBe("phone");
-    });
-
-    visitFiltered.forEach((activity) => {
-      expect(activity.type).toBe("visit");
-    });
+    expect(detectionResult3.unbilled_deals[0].sla_level).toBe(
+      detectionResult1.unbilled_deals[0].sla_level,
+    );
+    expect(detectionResult3.delayed_deals[0].sla_level).toBe(
+      detectionResult1.delayed_deals[0].sla_level,
+    );
+    expect(detectionResult3.delayed_deals[1].sla_level).toBe(
+      detectionResult1.delayed_deals[1].sla_level,
+    );
   });
 });

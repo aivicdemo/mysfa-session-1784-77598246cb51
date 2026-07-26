@@ -1,71 +1,85 @@
-import { getCustomerActivityHistory } from '../../src/logic/it-1';
+import {
+  detectUnbilledAndDelayedCasesWithSLA,
+} from "../../src/logic/it-1-3";
 
-describe('顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能', () => {
+describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
   // SCEN-191
-  test('商談・活動履歴の時系列表示機能 - ちょうど100件の商談・活動記録が表示され、101件目は除外される', () => {
-    // テストデータとして101件の商談・活動記録を作成
-    const activityRecords = Array.from({ length: 101 }, (_, index) => ({
-      id: `activity_${index + 1}`,
-      customerId: 'cust_001',
-      recordType: index % 3 === 0 ? 'call' : index % 3 === 1 ? 'email' : 'visit',
-      description: `Activity ${index + 1}`,
-      activityDate: new Date('2024-01-01T00:00:00Z').getTime() + index * 86400000, // 1日ずつ差分を付与
-    }));
+  test("月次決算時の未請求・遅延案件の段階的検出と対応SLA管理機能 - 営業担当者への対応指示SLA（期限1営業日前）に従って指示が発行される", () => {
+    // 対応期限の1営業日前のタイムスタンプ（2024-04-29は月次決算期限2024-04-30の1営業日前）
+    const current_date_iso = "2024-04-29T09:00:00Z";
+    const response_deadline_iso = "2024-04-30T23:59:59Z";
+    const business_days_before_deadline = 1;
 
-    const dealRecords = Array.from({ length: 101 }, (_, index) => ({
-      id: `deal_${index + 1}`,
-      customerId: 'cust_001',
-      dealName: `Deal ${index + 1}`,
-      dealAmount: 10000 * (index + 1),
-      status: index % 5 === 0 ? 'initial' : index % 5 === 1 ? 'proposal' : index % 5 === 2 ? 'negotiation' : index % 5 === 3 ? 'order' : 'lost',
-      dealDate: new Date('2024-01-01T00:00:00Z').getTime() + index * 86400000,
-    }));
+    // テストデータ: 未請求案件
+    const unbilled_case = {
+      case_id: "CASE-20240429-001",
+      customer_id: "CUST-12345",
+      customer_name: "サンプル企業A",
+      contract_status: "受注",
+      invoice_issued: false,
+      invoice_issue_date: null,
+      contract_amount: 500000,
+      salesperson_id: "SALES-001",
+      salesperson_name: "営業太郎",
+      contract_date_iso: "2024-04-20T10:00:00Z",
+      expected_invoice_date_iso: "2024-04-30T23:59:59Z",
+    };
 
-    const allRecords = [...activityRecords, ...dealRecords].sort((a, b) => {
-      const aDate = 'activityDate' in a ? a.activityDate : a.dealDate;
-      const bDate = 'activityDate' in b ? b.activityDate : b.dealDate;
-      return bDate - aDate;
-    });
+    const input = {
+      current_date_iso,
+      response_deadline_iso,
+      business_days_before_deadline,
+      cases: [unbilled_case],
+      system_timezone: "Asia/Tokyo",
+    };
 
-    // 機能を実行
-    const result = getCustomerActivityHistory({
-      customerId: 'cust_001',
-      records: allRecords,
-      maxRecordCount: 100,
-      sortOrder: 'desc', // 最新順
-    });
+    const result = detectUnbilledAndDelayedCasesWithSLA(input);
 
-    // 101件のうち、100件だけが返却されることを確認
-    expect(result.records.length).toBe(100);
+    // 対応指示が発行されたことを確認
+    expect(result.instruction_issued).toBe(true);
 
-    // 返却されたレコードが時系列順（新しい順）に並んでいることを確認
-    for (let i = 0; i < result.records.length - 1; i++) {
-      const currentDate = 'activityDate' in result.records[i] ? result.records[i].activityDate : result.records[i].dealDate;
-      const nextDate = 'activityDate' in result.records[i + 1] ? result.records[i + 1].activityDate : result.records[i + 1].dealDate;
-      expect(currentDate).toBeGreaterThanOrEqual(nextDate);
-    }
+    // 対応指示の件数が1件であることを確認
+    expect(result.issued_instructions.length).toBe(1);
 
-    // 101件目のレコードが含まれていないことを確認
-    const record101Id = `activity_101`;
-    const deal101Id = `deal_101`;
-    const recordIds = result.records.map((r) => r.id);
-    expect(recordIds).not.toContain(record101Id);
-    expect(recordIds).not.toContain(deal101Id);
+    // 発行された対応指示の内容を検証
+    const issued_instruction = result.issued_instructions[0];
+    expect(issued_instruction.instruction_id).toBeDefined();
+    expect(issued_instruction.case_id).toBe("CASE-20240429-001");
+    expect(issued_instruction.salesperson_id).toBe("SALES-001");
+    expect(issued_instruction.salesperson_name).toBe("営業太郎");
+    expect(issued_instruction.instruction_type).toBe("unbilled");
+    expect(issued_instruction.instruction_content).toContain("未請求案件");
+    expect(issued_instruction.customer_name).toBe("サンプル企業A");
+    expect(issued_instruction.contract_amount).toBe(500000);
 
-    // 最初の記録（最新）の日付が最後の記録（古い）の日付より新しいことを確認
-    if (result.records.length > 1) {
-      const firstDate = 'activityDate' in result.records[0] ? result.records[0].activityDate : result.records[0].dealDate;
-      const lastDate = 'activityDate' in result.records[result.records.length - 1] ? result.records[result.records.length - 1].activityDate : result.records[result.records.length - 1].dealDate;
-      expect(firstDate).toBeGreaterThan(lastDate);
-    }
+    // 対応指示の発行日時がシステム現在日時と一致することを確認
+    expect(issued_instruction.issued_date_iso).toBe("2024-04-29T09:00:00Z");
 
-    // キャッシュ状態が正常であることを確認
-    expect(result.cacheStatus).toBe('valid');
+    // SLA期限1営業日前のタイミングで指示が発行されたことを確認
+    expect(issued_instruction.sla_timing_days_before_deadline).toBe(1);
 
-    // トータルレコード数が正しく報告されることを確認
-    expect(result.totalRecordCount).toBe(202);
+    // 対応期限がレスポンス期限と同じであることを確認
+    expect(issued_instruction.sla_response_deadline_iso).toBe(
+      "2024-04-30T23:59:59Z"
+    );
 
-    // 除外されたレコード数が1件であることを確認
-    expect(result.excludedRecordCount).toBe(102);
+    // 対応指示が営業担当者に割り当てられていることを確認
+    expect(issued_instruction.assigned_to_salesperson).toBe(true);
+
+    // 通知履歴が記録されていることを確認
+    expect(result.notification_records.length).toBe(1);
+    const notification = result.notification_records[0];
+    expect(notification.instruction_id).toBe(
+      issued_instruction.instruction_id
+    );
+    expect(notification.recipient_id).toBe("SALES-001");
+    expect(notification.notification_type).toBe("assignment");
+    expect(notification.sent_date_iso).toBe("2024-04-29T09:00:00Z");
+    expect(notification.status).toBe("sent");
+
+    // 検出対象の案件がリストに含まれていることを確認
+    expect(result.detected_cases.length).toBe(1);
+    expect(result.detected_cases[0].case_id).toBe("CASE-20240429-001");
+    expect(result.detected_cases[0].category).toBe("unbilled");
   });
 });

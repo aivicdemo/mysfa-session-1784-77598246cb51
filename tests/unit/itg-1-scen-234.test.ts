@@ -1,17 +1,18 @@
-import { validateDealStatusTransition } from "../../src/logic/it-1784969823049-2-1-1";
+import { calculateInvestmentRecoveryPeriod } from '../../src/logic/it-1-3';
 
-describe("商談レコードの進捗ステータスと提案内容の入力・保存機能", () => {
-  test("SCEN-234: 不正なステータス値への遷移がエラーで拒否される", () => {
-    const currentStatus = "提案中";
-    const invalidNewStatus = "invalid_status";
-    const validStatuses = ["初期接触", "提案中", "交渉中", "受注", "失注"];
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-234
+  test('運用期間が1ヶ月未満の場合、投資回収期間の算出エラーが返される', () => {
+    const operationDays = 15;
+    const salesforceLicenseCost = 300000;
+    const monthlySavingsAmount = 50000;
 
-    expect(() =>
-      validateDealStatusTransition({
-        currentStatus,
-        newStatus: invalidNewStatus,
-        validStatuses,
-      })
-    ).toThrow(/ステータス/);
+    expect(() => {
+      calculateInvestmentRecoveryPeriod({
+        operationDays,
+        salesforceLicenseCost,
+        monthlySavingsAmount,
+      });
+    }).toThrow(/運用期間/);
   });
 });

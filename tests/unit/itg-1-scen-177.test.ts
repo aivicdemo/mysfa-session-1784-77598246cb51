@@ -1,16 +1,37 @@
-import { saveNegotiationRecord } from '../../src/logic/it-1784969823049-2-1-1';
+import { generateInvoice } from '../../src/logic/it-1-1';
 
-describe('商談レコードの進捗ステータスと提案内容の入力・保存機能', () => {
+describe('見積・注文・請求書の自動生成機能', () => {
   // SCEN-177
-  test('提案内容が空文字列の場合、保存処理がエラーで終了する', () => {
-    const negotiation_record = {
-      negotiation_id: 'NEG-001',
-      customer_id: 'CUST-123',
-      status: '提案中',
-      proposal_content: '',
-      created_at: new Date('2024-01-15T10:00:00Z'),
+  test('請求明細が0件の商談からは請求書が生成されないか、空白請求書となる', () => {
+    const deal_id = 'DEAL-20240115-001';
+    const customer_id = 'CUST-00001';
+    const customer_name = '株式会社テスト';
+    const deal_amount = 0;
+    const invoice_line_items: Array<{
+      line_item_id: string;
+      product_id: string;
+      quantity: number;
+      unit_price: number;
+      line_total: number;
+    }> = [];
+
+    const deal_data = {
+      deal_id,
+      customer_id,
+      customer_name,
+      deal_amount,
+      invoice_line_items,
+      deal_status: 'won',
     };
 
-    expect(() => saveNegotiationRecord(negotiation_record)).toThrow(/提案内容/);
+    const result = generateInvoice(deal_data);
+
+    expect(result).toEqual({
+      success: false,
+      error_message: '請求対象となる明細がありません',
+      invoice_id: null,
+      invoice_amount: 0,
+      invoice_line_count: 0,
+    });
   });
 });

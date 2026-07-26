@@ -1,44 +1,26 @@
-import {
-  validateDealStatusAndInvoiceAlignment,
-} from "../../src/logic/it-1784969823049-1-1-1";
+import { fetchCustomerActivityRecords } from "../../src/logic/it-1";
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
+describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
   // SCEN-152
-  test("商談ステータスが『受注』で請求書発行日が売上計上予定日と一致する場合、ズレなしと判定される", () => {
-    const dealData = {
-      dealId: "DEAL-001",
-      dealStatus: "受注",
-      plannedRevenueDate: new Date("2024-01-15"),
-      dealAmount: 500000,
-      customerId: "CUST-001",
-      customerName: "テスト顧客",
-    };
+  test("商談・活動記録が存在しない場合に空の結果セットが返される", () => {
+    const customerId = "CUST-999999";
+    const lookbackDays = 365;
 
-    const invoiceData = {
-      invoiceId: "INV-001",
-      dealId: "DEAL-001",
-      invoiceIssuedDate: new Date("2024-01-15"),
-      invoiceAmount: 500000,
-      customerId: "CUST-001",
-    };
-
-    const result = validateDealStatusAndInvoiceAlignment(dealData, invoiceData);
+    const result = fetchCustomerActivityRecords(customerId, lookbackDays);
 
     expect(result).toEqual({
-      dealId: "DEAL-001",
-      dealStatus: "受注",
-      plannedRevenueDate: new Date("2024-01-15"),
-      invoiceIssuedDate: new Date("2024-01-15"),
-      alignmentStatus: "ズレなし",
-      hasWarning: false,
-      hasError: false,
-      delayDays: 0,
-      message: "商談ステータスと請求書発行日が一致しています",
+      dealRecords: [],
+      activityRecords: [],
+      issueResolutionRecords: [],
+      hasData: false,
+      message: "該当する商談・活動記録がありません",
     });
-
-    expect(result.alignmentStatus).toBe("ズレなし");
-    expect(result.hasWarning).toBe(false);
-    expect(result.hasError).toBe(false);
-    expect(result.delayDays).toBe(0);
+    expect(Array.isArray(result.dealRecords)).toBe(true);
+    expect(Array.isArray(result.activityRecords)).toBe(true);
+    expect(Array.isArray(result.issueResolutionRecords)).toBe(true);
+    expect(result.dealRecords.length).toBe(0);
+    expect(result.activityRecords.length).toBe(0);
+    expect(result.issueResolutionRecords.length).toBe(0);
+    expect(result.hasData).toBe(false);
   });
 });

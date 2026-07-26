@@ -1,141 +1,153 @@
-import { getCachedCustomerData } from '../../src/logic/it-1';
+import { validateDealStatusTransition } from "../../src/logic/it-1784969823049-2-1-1";
 
-describe('顧客レコード画面のキャッシュ有効期限管理機能', () => {
-  // SCEN-197: [normal] キャッシュ有効期限管理機能 - キャッシュ有効期限を超過した場合、自動的にデータベースから最新データが再取得される
-  test('キャッシュ有効期限を超過後、最新データがデータベースから再取得される', async () => {
-    const customerId = 'cust_001';
-    const cacheValidityMs = 60000; // キャッシュ有効期限: 60秒
-    const currentTime = new Date('2024-04-15T10:00:00Z');
-    const expiredTime = new Date('2024-04-15T10:01:30Z'); // 90秒後（有効期限超過）
-
-    // 初回取得時のデータベースレスポンス
-    const initialDbData = {
-      customerId: 'cust_001',
-      customerName: '太郎商事',
-      industry: '製造業',
-      region: '東京',
-      lastUpdated: '2024-04-15T10:00:00Z',
-      deals: [
-        {
-          dealId: 'deal_001',
-          dealName: '提案A',
-          status: '初期接触',
-          amount: 500000,
-          createdAt: '2024-04-10T09:00:00Z',
-        },
-      ],
-      activities: [
-        {
-          activityId: 'act_001',
-          activityType: 'email',
-          activityDate: '2024-04-14T14:30:00Z',
-          description: '初回提案メール送信',
-        },
-      ],
-      issues: [
-        {
-          issueId: 'issue_001',
-          issueTitle: '予算承認待ち',
-          status: '進行中',
-          createdAt: '2024-04-12T11:00:00Z',
-        },
-      ],
+describe("商談レコードの進捗ステータスと提案内容の入力・保存機能", () => {
+  // SCEN-197
+  test("商談ステータス遷移の業務ルール検証機能 - ステータス遷移の条件（必須項目の入力有無など）が境界値である場合、正確に検証される", () => {
+    // ステップ 1-2: 初期ステータス「新規」で商談を作成
+    const initialDeal = {
+      dealId: "DEAL-001",
+      status: "新規",
+      customerName: "",
+      amount: null,
+      proposalDate: null,
+      proposalContent: "",
+      orderConditions: "",
     };
 
-    // キャッシュ有効期限超過後のデータベースレスポンス（最新データ）
-    const updatedDbData = {
-      customerId: 'cust_001',
-      customerName: '太郎商事',
-      industry: '製造業',
-      region: '東京',
-      lastUpdated: '2024-04-15T10:01:20Z',
-      deals: [
-        {
-          dealId: 'deal_001',
-          dealName: '提案A',
-          status: '提案中',
-          amount: 500000,
-          createdAt: '2024-04-10T09:00:00Z',
-        },
-        {
-          dealId: 'deal_002',
-          dealName: '提案B',
-          status: '初期接触',
-          amount: 300000,
-          createdAt: '2024-04-15T09:30:00Z',
-        },
-      ],
-      activities: [
-        {
-          activityId: 'act_001',
-          activityType: 'email',
-          activityDate: '2024-04-14T14:30:00Z',
-          description: '初回提案メール送信',
-        },
-        {
-          activityId: 'act_002',
-          activityType: 'phone',
-          activityDate: '2024-04-15T10:00:00Z',
-          description: '進捗確認電話',
-        },
-      ],
-      issues: [
-        {
-          issueId: 'issue_001',
-          issueTitle: '予算承認待ち',
-          status: '解決済み',
-          resolvedAt: '2024-04-15T10:00:00Z',
-          createdAt: '2024-04-12T11:00:00Z',
-        },
-      ],
+    // ステップ 3-4: 「初期接触」への遷移、必須項目「顧客名」入力、「初期接触金額」空のまま遷移を試みる
+    const dealWithCustomerOnly = {
+      ...initialDeal,
+      status: "新規",
+      customerName: "顧客A",
+      amount: null, // 必須項目が空
     };
 
-    // 初回取得（キャッシュに保存）
-    const firstResult = await getCachedCustomerData({
-      customerId,
-      currentTime,
-      cacheValidityMs,
+    expect(() =>
+      validateDealStatusTransition(dealWithCustomerOnly, "初期接触")
+    ).toThrow(/初期接触金額/);
+
+    // ステップ 5-6: 「初期接触金額」に最小値（0円）を入力して遷移を試みる
+    const dealWithMinimumAmount = {
+      ...initialDeal,
+      status: "新規",
+      customerName: "顧客A",
+      amount: 0, // 最小値
+    };
+
+    const result1 = validateDealStatusTransition(
+      dealWithMinimumAmount,
+      "初期接触"
+    );
+    expect(result1).toEqual({
+      allowed: true,
+      previousStatus: "新規",
+      newStatus: "初期接触",
+      validatedFields: ["customerName", "amount"],
     });
 
-    expect(firstResult.data).toEqual(initialDbData);
-    expect(firstResult.source).toBe('database');
-    expect(firstResult.cachedAt).toBe('2024-04-15T10:00:00Z');
-    expect(firstResult.isFromCache).toBe(false);
+    // ステップ 7-9: 「提案」への遷移、すべての必須項目入力、「提案内容」は最小文字数（1文字）
+    const dealWithProposal = {
+      dealId: "DEAL-001",
+      status: "初期接触",
+      customerName: "顧客A",
+      amount: 100000,
+      proposalDate: "2024-01-15",
+      proposalContent: "A", // 最小文字数 1文字
+      orderConditions: "",
+    };
 
-    // キャッシュ有効期限内での2回目取得（キャッシュから返却）
-    const secondResultInValidity = await getCachedCustomerData({
-      customerId,
-      currentTime: new Date('2024-04-15T10:00:30Z'), // 30秒後
-      cacheValidityMs,
+    const result2 = validateDealStatusTransition(dealWithProposal, "提案");
+    expect(result2).toEqual({
+      allowed: true,
+      previousStatus: "初期接触",
+      newStatus: "提案",
+      validatedFields: ["customerName", "amount", "proposalDate", "proposalContent"],
     });
 
-    expect(secondResultInValidity.data).toEqual(initialDbData);
-    expect(secondResultInValidity.source).toBe('cache');
-    expect(secondResultInValidity.cachedAt).toBe('2024-04-15T10:00:00Z');
-    expect(secondResultInValidity.isFromCache).toBe(true);
+    // ステップ 10-12: 「受注」への遷移、すべての必須項目入力、「受注条件」は最大文字数を超える入力
+    const dealWithExcessiveOrderConditions = {
+      dealId: "DEAL-001",
+      status: "提案",
+      customerName: "顧客A",
+      amount: 100000,
+      proposalDate: "2024-01-15",
+      proposalContent: "提案内容の詳細",
+      orderConditions: "a".repeat(5001), // 最大文字数 5000 を超える
+    };
 
-    // キャッシュ有効期限超過後の3回目取得（データベースから再取得）
-    const thirdResultExpired = await getCachedCustomerData({
-      customerId,
-      currentTime: expiredTime,
-      cacheValidityMs,
+    expect(() =>
+      validateDealStatusTransition(dealWithExcessiveOrderConditions, "受注")
+    ).toThrow(/受注条件/);
+
+    // ステップ 13-14: 「受注条件」を最大文字数以内に修正して遷移を試みる
+    const dealWithValidOrderConditions = {
+      dealId: "DEAL-001",
+      status: "提案",
+      customerName: "顧客A",
+      amount: 100000,
+      proposalDate: "2024-01-15",
+      proposalContent: "提案内容の詳細",
+      orderConditions: "a".repeat(5000), // 最大文字数 5000 以内
+    };
+
+    const result3 = validateDealStatusTransition(
+      dealWithValidOrderConditions,
+      "受注"
+    );
+    expect(result3).toEqual({
+      allowed: true,
+      previousStatus: "提案",
+      newStatus: "受注",
+      validatedFields: [
+        "customerName",
+        "amount",
+        "proposalDate",
+        "proposalContent",
+        "orderConditions",
+      ],
     });
 
-    expect(thirdResultExpired.data).toEqual(updatedDbData);
-    expect(thirdResultExpired.source).toBe('database');
-    expect(thirdResultExpired.cachedAt).toBe('2024-04-15T10:01:30Z');
-    expect(thirdResultExpired.isFromCache).toBe(false);
+    // 検証結果ログ出力
+    const validationLog = [
+      {
+        step: "初期接触遷移試行1",
+        condition: "必須項目「顧客名」入力、「初期接触金額」空",
+        result: "拒否",
+        errorMessage: "初期接触金額",
+      },
+      {
+        step: "初期接触遷移試行2",
+        condition: "「初期接触金額」最小値（0円）入力",
+        result: "成功",
+        errorMessage: null,
+      },
+      {
+        step: "提案遷移試行",
+        condition: "すべての必須項目入力、「提案内容」最小文字数（1文字）",
+        result: "成功",
+        errorMessage: null,
+      },
+      {
+        step: "受注遷移試行1",
+        condition: "「受注条件」最大文字数超過（5001文字）",
+        result: "拒否",
+        errorMessage: "受注条件",
+      },
+      {
+        step: "受注遷移試行2",
+        condition: "「受注条件」最大文字数以内（5000文字）",
+        result: "成功",
+        errorMessage: null,
+      },
+    ];
 
-    // キャッシュ再取得後、更新されたキャッシュから4回目取得
-    const fourthResultCachedAgain = await getCachedCustomerData({
-      customerId,
-      currentTime: new Date('2024-04-15T10:01:35Z'), // 再取得から5秒後
-      cacheValidityMs,
-    });
-
-    expect(fourthResultCachedAgain.data).toEqual(updatedDbData);
-    expect(fourthResultCachedAgain.source).toBe('cache');
-    expect(fourthResultCachedAgain.cachedAt).toBe('2024-04-15T10:01:30Z');
-    expect(fourthResultCachedAgain.isFromCache).toBe(true);
+    expect(validationLog).toHaveLength(5);
+    expect(validationLog[0].result).toBe("拒否");
+    expect(validationLog[0].errorMessage).toBe("初期接触金額");
+    expect(validationLog[1].result).toBe("成功");
+    expect(validationLog[2].result).toBe("成功");
+    expect(validationLog[3].result).toBe("拒否");
+    expect(validationLog[3].errorMessage).toBe("受注条件");
+    expect(validationLog[4].result).toBe("成功");
   });
 });

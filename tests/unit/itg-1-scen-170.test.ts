@@ -1,106 +1,121 @@
-import { detectDealStatusAndInvoiceDiscrepancies } from "../../src/logic/it-1784969823049-1-1-1";
+import { detectDelayedInvoices } from '../../src/logic/it-1784969823049-1-1-1';
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
-  // SCEN-170: [normal] 商談ステータスと請求書発行状況の自動照合・ズレ検出機能 - 『受注』ステータスの商談と請求書発行日を照合し、売上計上予定日とのズレを検出する
-  test("『受注』ステータスの商談と請求書発行日のズレが正確に検出され、日数差分が正しく計算・表示される", () => {
-    const deal_id_1 = "DEAL-001";
-    const deal_status_1 = "受注";
-    const revenue_recognition_date_1 = new Date("2024-04-15T00:00:00Z");
-    const invoice_issue_date_1 = new Date("2024-04-18T00:00:00Z");
-    const days_discrepancy_1 = 3;
+describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
+  // SCEN-170
+  test('請求予定日を超過した案件を『遅延案件』として正しく検出できる', () => {
+    const today = new Date('2024-04-15T00:00:00Z');
+    const now = today.getTime();
 
-    const deal_id_2 = "DEAL-002";
-    const deal_status_2 = "受注";
-    const revenue_recognition_date_2 = new Date("2024-04-20T00:00:00Z");
-    const invoice_issue_date_2 = new Date("2024-04-20T00:00:00Z");
-    const days_discrepancy_2 = 0;
+    const overdue30 = new Date('2024-03-16T00:00:00Z').getTime();
+    const overdue60 = new Date('2024-02-15T00:00:00Z').getTime();
+    const overdue90 = new Date('2024-01-16T00:00:00Z').getTime();
+    const future7 = new Date('2024-04-22T00:00:00Z').getTime();
+    const future30 = new Date('2024-05-15T00:00:00Z').getTime();
 
-    const deal_id_3 = "DEAL-003";
-    const deal_status_3 = "受注";
-    const revenue_recognition_date_3 = new Date("2024-04-25T00:00:00Z");
-    const invoice_issue_date_3 = new Date("2024-05-02T00:00:00Z");
-    const days_discrepancy_3 = 7;
-    const tolerance_threshold_days = 5;
-
-    const deals_and_invoices = [
+    const testDeals = [
       {
-        deal_id: deal_id_1,
-        deal_status: deal_status_1,
-        revenue_recognition_date: revenue_recognition_date_1,
-        invoice_issue_date: invoice_issue_date_1,
-        customer_name: "顧客A",
-        amount: 500000,
+        dealId: 'DEAL-001',
+        customerId: 'CUST-A',
+        status: 'CLOSED',
+        invoiceIssued: false,
+        invoiceDueDate: overdue30,
+        amount: 100000,
       },
       {
-        deal_id: deal_id_2,
-        deal_status: deal_status_2,
-        revenue_recognition_date: revenue_recognition_date_2,
-        invoice_issue_date: invoice_issue_date_2,
-        customer_name: "顧客B",
-        amount: 300000,
+        dealId: 'DEAL-002',
+        customerId: 'CUST-B',
+        status: 'CLOSED',
+        invoiceIssued: false,
+        invoiceDueDate: overdue60,
+        amount: 200000,
       },
       {
-        deal_id: deal_id_3,
-        deal_status: deal_status_3,
-        revenue_recognition_date: revenue_recognition_date_3,
-        invoice_issue_date: invoice_issue_date_3,
-        customer_name: "顧客C",
-        amount: 800000,
+        dealId: 'DEAL-003',
+        customerId: 'CUST-C',
+        status: 'CLOSED',
+        invoiceIssued: false,
+        invoiceDueDate: overdue90,
+        amount: 150000,
+      },
+      {
+        dealId: 'DEAL-004',
+        customerId: 'CUST-D',
+        status: 'CLOSED',
+        invoiceIssued: false,
+        invoiceDueDate: future7,
+        amount: 120000,
+      },
+      {
+        dealId: 'DEAL-005',
+        customerId: 'CUST-E',
+        status: 'CLOSED',
+        invoiceIssued: false,
+        invoiceDueDate: future30,
+        amount: 180000,
       },
     ];
 
-    const result = detectDealStatusAndInvoiceDiscrepancies(
-      deals_and_invoices,
-      tolerance_threshold_days
-    );
+    const result = detectDelayedInvoices({
+      deals: testDeals,
+      referenceDate: now,
+    });
 
-    expect(result).toBeDefined();
-    expect(Array.isArray(result.discrepancies)).toBe(true);
-    expect(result.discrepancies.length).toBe(2);
+    expect(result.delayedInvoices).toHaveLength(3);
 
-    const discrepancy_1 = result.discrepancies.find(
-      (d: { deal_id: string }) => d.deal_id === deal_id_1
-    );
-    expect(discrepancy_1).toBeDefined();
-    expect(discrepancy_1.deal_id).toBe(deal_id_1);
-    expect(discrepancy_1.deal_status).toBe(deal_status_1);
-    expect(discrepancy_1.revenue_recognition_date).toEqual(
-      revenue_recognition_date_1
-    );
-    expect(discrepancy_1.invoice_issue_date).toEqual(invoice_issue_date_1);
-    expect(discrepancy_1.days_discrepancy).toBe(days_discrepancy_1);
-    expect(discrepancy_1.customer_name).toBe("顧客A");
-    expect(discrepancy_1.amount).toBe(500000);
-    expect(discrepancy_1.is_within_tolerance).toBe(false);
-    expect(discrepancy_1.alert_level).toBe("warning");
+    const delayedIds = result.delayedInvoices.map((inv) => inv.dealId);
+    expect(delayedIds).toContain('DEAL-001');
+    expect(delayedIds).toContain('DEAL-002');
+    expect(delayedIds).toContain('DEAL-003');
 
-    const discrepancy_3 = result.discrepancies.find(
-      (d: { deal_id: string }) => d.deal_id === deal_id_3
+    const delayedDeal001 = result.delayedInvoices.find(
+      (inv) => inv.dealId === 'DEAL-001'
     );
-    expect(discrepancy_3).toBeDefined();
-    expect(discrepancy_3.deal_id).toBe(deal_id_3);
-    expect(discrepancy_3.deal_status).toBe(deal_status_3);
-    expect(discrepancy_3.revenue_recognition_date).toEqual(
-      revenue_recognition_date_3
-    );
-    expect(discrepancy_3.invoice_issue_date).toEqual(invoice_issue_date_3);
-    expect(discrepancy_3.days_discrepancy).toBe(days_discrepancy_3);
-    expect(discrepancy_3.customer_name).toBe("顧客C");
-    expect(discrepancy_3.amount).toBe(800000);
-    expect(discrepancy_3.is_within_tolerance).toBe(false);
-    expect(discrepancy_3.alert_level).toBe("error");
+    expect(delayedDeal001).toBeDefined();
+    expect(delayedDeal001?.label).toBe('遅延案件');
+    expect(delayedDeal001?.isDelayed).toBe(true);
+    expect(delayedDeal001?.daysOverdue).toBe(30);
 
-    const no_discrepancy_found = result.discrepancies.find(
-      (d: { deal_id: string }) => d.deal_id === deal_id_2
+    const delayedDeal002 = result.delayedInvoices.find(
+      (inv) => inv.dealId === 'DEAL-002'
     );
-    expect(no_discrepancy_found).toBeUndefined();
+    expect(delayedDeal002).toBeDefined();
+    expect(delayedDeal002?.label).toBe('遅延案件');
+    expect(delayedDeal002?.isDelayed).toBe(true);
+    expect(delayedDeal002?.daysOverdue).toBe(60);
 
-    expect(result.summary).toBeDefined();
-    expect(result.summary.total_deals_checked).toBe(3);
-    expect(result.summary.total_discrepancies_detected).toBe(2);
-    expect(result.summary.within_tolerance_count).toBe(0);
-    expect(result.summary.exceeded_tolerance_count).toBe(2);
-    expect(result.summary.warning_count).toBe(1);
-    expect(result.summary.error_count).toBe(1);
+    const delayedDeal003 = result.delayedInvoices.find(
+      (inv) => inv.dealId === 'DEAL-003'
+    );
+    expect(delayedDeal003).toBeDefined();
+    expect(delayedDeal003?.label).toBe('遅延案件');
+    expect(delayedDeal003?.isDelayed).toBe(true);
+    expect(delayedDeal003?.daysOverdue).toBe(90);
+
+    const futureIds = result.futureInvoices.map((inv) => inv.dealId);
+    expect(futureIds).not.toContain('DEAL-001');
+    expect(futureIds).not.toContain('DEAL-002');
+    expect(futureIds).not.toContain('DEAL-003');
+    expect(futureIds).toContain('DEAL-004');
+    expect(futureIds).toContain('DEAL-005');
+
+    const futureDeal004 = result.futureInvoices.find(
+      (inv) => inv.dealId === 'DEAL-004'
+    );
+    expect(futureDeal004).toBeDefined();
+    expect(futureDeal004?.isDelayed).toBe(false);
+    expect(futureDeal004?.daysOverdue).toBe(0);
+
+    const futureDeal005 = result.futureInvoices.find(
+      (inv) => inv.dealId === 'DEAL-005'
+    );
+    expect(futureDeal005).toBeDefined();
+    expect(futureDeal005?.isDelayed).toBe(false);
+    expect(futureDeal005?.daysOverdue).toBe(0);
+
+    expect(result.totalDelayedCount).toBe(3);
+    expect(result.totalFutureCount).toBe(2);
+    expect(result.delayedInvoices.every((inv) => inv.label === '遅延案件')).toBe(
+      true
+    );
   });
 });

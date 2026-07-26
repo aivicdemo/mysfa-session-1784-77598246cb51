@@ -1,139 +1,132 @@
-import { getActivityHistoryWithStableSort } from '../../src/logic/it-1';
+import { detectOverdueCasesWithEscalation } from "../../src/logic/it-1-3";
 
-describe('顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能', () => {
-  // SCEN-192: [edge] 商談・活動履歴の時系列表示機能 - 同一タイムスタンプの記録が存在する場合、安定したソート順序が保証される
-  test('同一タイムスタンプを持つ活動履歴レコードについて、すべてのリロード・キャッシュクリア後においても安定したソート順序が保証される', () => {
-    const shared_timestamp = new Date('2024-01-15T10:30:00Z');
-
-    const activity_record_1 = {
-      activity_id: 'ACT-001',
-      activity_type: 'email',
-      timestamp: shared_timestamp,
-      customer_id: 'CUST-100',
-      deal_id: 'DEAL-001',
-      created_at: new Date('2024-01-15T10:00:00Z'),
-    };
-
-    const activity_record_2 = {
-      activity_id: 'ACT-002',
-      activity_type: 'phone',
-      timestamp: shared_timestamp,
-      customer_id: 'CUST-100',
-      deal_id: 'DEAL-001',
-      created_at: new Date('2024-01-15T10:05:00Z'),
-    };
-
-    const activity_record_3 = {
-      activity_id: 'ACT-003',
-      activity_type: 'visit',
-      timestamp: shared_timestamp,
-      customer_id: 'CUST-100',
-      deal_id: 'DEAL-001',
-      created_at: new Date('2024-01-15T10:10:00Z'),
-    };
-
-    const activity_record_4 = {
-      activity_id: 'ACT-004',
-      activity_type: 'email',
-      timestamp: new Date('2024-01-15T10:29:59Z'),
-      customer_id: 'CUST-100',
-      deal_id: 'DEAL-001',
-      created_at: new Date('2024-01-15T09:50:00Z'),
-    };
-
-    const activity_record_5 = {
-      activity_id: 'ACT-005',
-      activity_type: 'phone',
-      timestamp: new Date('2024-01-15T10:30:01Z'),
-      customer_id: 'CUST-100',
-      deal_id: 'DEAL-001',
-      created_at: new Date('2024-01-15T10:20:00Z'),
-    };
-
-    const input_activities = [
-      activity_record_2,
-      activity_record_4,
-      activity_record_1,
-      activity_record_5,
-      activity_record_3,
+describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
+  test("SCEN-192: 月次決算時の未請求・遅延案件の段階的検出と対応SLA管理機能 - 期限を過ぎた案件に対してSLAが遵守されない場合、エスカレーション対象となる", () => {
+    // Precondition: 月次決算期限が到来し、営業管理システムに商談レコードと請求書発行記録が存在する状態
+    // SLA設定: 遅延案件の対応期限は3営業日
+    const dealRecords = [
+      {
+        dealId: "DEAL001",
+        dealStatus: "受注",
+        customerId: "CUST001",
+        amount: 500000,
+        invoiceIssuedDate: null,
+        expectedBillingDate: new Date("2024-01-10T00:00:00Z"),
+        createdAt: new Date("2024-01-01T00:00:00Z"),
+      },
+      {
+        dealId: "DEAL002",
+        dealStatus: "完了",
+        customerId: "CUST002",
+        amount: 300000,
+        invoiceIssuedDate: new Date("2024-01-12T00:00:00Z"),
+        expectedBillingDate: new Date("2024-01-15T00:00:00Z"),
+        createdAt: new Date("2024-01-05T00:00:00Z"),
+      },
+      {
+        dealId: "DEAL003",
+        dealStatus: "受注",
+        customerId: "CUST003",
+        amount: 800000,
+        invoiceIssuedDate: null,
+        expectedBillingDate: new Date("2024-01-08T00:00:00Z"),
+        createdAt: new Date("2024-01-02T00:00:00Z"),
+      },
     ];
 
-    // 第1回目のソート結果
-    const first_sort_result = getActivityHistoryWithStableSort(input_activities);
+    // SLA configuration: 遅延案件対応期限は3営業日（営業日ベース）
+    const slaConfig = {
+      overdueThresholdBusinessDays: 3,
+      notificationThresholdBusinessDays: 2,
+    };
 
-    // 第2回目のソート結果（キャッシュなし再取得を模擬）
-    const second_sort_result = getActivityHistoryWithStableSort(input_activities);
+    // Current date: 2024-01-25 (月次決算期限到来)
+    const currentDate = new Date("2024-01-25T10:00:00Z");
 
-    // 第3回目のソート結果
-    const third_sort_result = getActivityHistoryWithStableSort(input_activities);
-
-    // 期待される順序: timestamp降順 → 同一タイムスタンプ内ではcreated_at昇順
-    // [ACT-005 (10:30:01)] → [ACT-001,002,003 (10:30:00で created_at昇順)] → [ACT-004 (10:29:59)]
-    const expected_order = [
-      'ACT-005',
-      'ACT-001',
-      'ACT-002',
-      'ACT-003',
-      'ACT-004',
-    ];
-
-    // 1回目の結果検証
-    expect(first_sort_result).toHaveLength(5);
-    const first_result_ids = first_sort_result.map((r) => r.activity_id);
-    expect(first_result_ids).toEqual(expected_order);
-
-    // 2回目の結果検証（安定性1回目)
-    expect(second_sort_result).toHaveLength(5);
-    const second_result_ids = second_sort_result.map((r) => r.activity_id);
-    expect(second_result_ids).toEqual(expected_order);
-    expect(second_result_ids).toEqual(first_result_ids);
-
-    // 3回目の結果検証（安定性2回目)
-    expect(third_sort_result).toHaveLength(5);
-    const third_result_ids = third_sort_result.map((r) => r.activity_id);
-    expect(third_result_ids).toEqual(expected_order);
-    expect(third_result_ids).toEqual(first_result_ids);
-
-    // 同一タイムスタンプのレコード（ACT-001, ACT-002, ACT-003）の相対順序が一貫していることを検証
-    const shared_ts_records_first = first_sort_result.filter(
-      (r) => r.timestamp.getTime() === shared_timestamp.getTime()
-    );
-    const shared_ts_records_second = second_sort_result.filter(
-      (r) => r.timestamp.getTime() === shared_timestamp.getTime()
-    );
-    const shared_ts_records_third = third_sort_result.filter(
-      (r) => r.timestamp.getTime() === shared_timestamp.getTime()
+    // Trigger: 月次決算期限到来時に、システムが未請求・遅延案件を検出してSLA超過分析を実行
+    const result = detectOverdueCasesWithEscalation(
+      dealRecords,
+      slaConfig,
+      currentDate
     );
 
-    expect(shared_ts_records_first).toHaveLength(3);
-    expect(shared_ts_records_second).toHaveLength(3);
-    expect(shared_ts_records_third).toHaveLength(3);
+    // Expected outcome:
+    // 1. DEAL001 (未請求案件): expectedBillingDate = 2024-01-10, 現在日 = 2024-01-25
+    //    遅延日数 = 15日 > SLA 3営業日(約6暦日) → エスカレーション対象
+    // 2. DEAL002 (遅延案件): 請求済みだが期限超過 → SLA確認
+    // 3. DEAL003 (未請求案件): expectedBillingDate = 2024-01-08, 遅延日数 = 17日 > SLA → エスカレーション対象
 
-    const shared_ts_order_first = shared_ts_records_first.map(
-      (r) => r.activity_id
+    expect(result).toHaveProperty("escalationCases");
+    expect(result).toHaveProperty("totalCasesDetected");
+    expect(result).toHaveProperty("notificationLogs");
+
+    // Validate escalation detection
+    expect(result.escalationCases).toHaveLength(2);
+
+    // Validate DEAL001 escalation
+    const escalatedDeal001 = result.escalationCases.find(
+      (c) => c.dealId === "DEAL001"
     );
-    const shared_ts_order_second = shared_ts_records_second.map(
-      (r) => r.activity_id
+    expect(escalatedDeal001).toBeDefined();
+    expect(escalatedDeal001?.dealId).toBe("DEAL001");
+    expect(escalatedDeal001?.overdueDays).toBe(15);
+    expect(escalatedDeal001?.isUnbilled).toBe(true);
+    expect(escalatedDeal001?.slaExceeded).toBe(true);
+    expect(escalatedDeal001?.escalationStatus).toBe("待機中");
+
+    // Validate DEAL003 escalation
+    const escalatedDeal003 = result.escalationCases.find(
+      (c) => c.dealId === "DEAL003"
     );
-    const shared_ts_order_third = shared_ts_records_third.map(
-      (r) => r.activity_id
+    expect(escalatedDeal003).toBeDefined();
+    expect(escalatedDeal003?.dealId).toBe("DEAL003");
+    expect(escalatedDeal003?.overdueDays).toBe(17);
+    expect(escalatedDeal003?.isUnbilled).toBe(true);
+    expect(escalatedDeal003?.slaExceeded).toBe(true);
+    expect(escalatedDeal003?.escalationStatus).toBe("待機中");
+
+    // Validate DEAL002 is not in escalation (already invoiced)
+    const escalatedDeal002 = result.escalationCases.find(
+      (c) => c.dealId === "DEAL002"
+    );
+    expect(escalatedDeal002).toBeUndefined();
+
+    // Validate total cases detected
+    expect(result.totalCasesDetected).toBe(2);
+
+    // Validate notification logs
+    expect(result.notificationLogs).toHaveLength(2);
+
+    const notificationForDeal001 = result.notificationLogs.find(
+      (log) => log.dealId === "DEAL001"
+    );
+    expect(notificationForDeal001).toBeDefined();
+    expect(notificationForDeal001?.notificationStatus).toMatch(
+      /通知待ち|通知済/
+    );
+    expect(notificationForDeal001?.assigneeEmail).toBeDefined();
+    expect(notificationForDeal001?.recordedAt).toBeDefined();
+
+    const notificationForDeal003 = result.notificationLogs.find(
+      (log) => log.dealId === "DEAL003"
+    );
+    expect(notificationForDeal003).toBeDefined();
+    expect(notificationForDeal003?.notificationStatus).toMatch(
+      /通知待ち|通知済/
     );
 
-    expect(shared_ts_order_first).toEqual(['ACT-001', 'ACT-002', 'ACT-003']);
-    expect(shared_ts_order_second).toEqual(shared_ts_order_first);
-    expect(shared_ts_order_third).toEqual(shared_ts_order_first);
+    // Validate escalation management data structure
+    expect(result.escalationManagementData).toBeDefined();
+    expect(result.escalationManagementData.escalationListDisplayed).toBe(true);
+    expect(result.escalationManagementData.escalationItems).toHaveLength(2);
+    expect(
+      result.escalationManagementData.escalationItems.every(
+        (item) => item.escalationFlag === true
+      )
+    ).toBe(true);
 
-    // timestamp順序が降順であることを検証
-    for (let i = 0; i < first_sort_result.length - 1; i++) {
-      expect(
-        first_sort_result[i].timestamp.getTime()
-      ).toBeGreaterThanOrEqual(
-        first_sort_result[i + 1].timestamp.getTime()
-      );
-    }
-
-    // 全結果がすべてのリロード後で同一の配列構造を保つ
-    expect(first_sort_result).toEqual(second_sort_result);
-    expect(second_sort_result).toEqual(third_sort_result);
+    // Validate no system errors occurred
+    expect(result.systemErrors).toHaveLength(0);
+    expect(result.processingStatus).toBe("成功");
   });
 });

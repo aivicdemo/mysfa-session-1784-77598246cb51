@@ -1,186 +1,153 @@
-import { describe, test, expect, beforeEach } from '@jest/globals';
-import {
-  updateDealStatusToContracted,
-} from '../../src/logic/it-1784969823049-2-1-1';
+import { aggregateMonthlySalesAndBillingStatus } from '../../src/logic/it-1-3';
 
-describe('商談レコードの進捗ステータスと提案内容の入力・保存機能', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  // SCEN-140: [normal] 商談ステータス更新時の必須項目チェックと請求データ紐付け
-  test('商談ステータスを成約に更新する際、顧客情報・金額・明細データがすべて入力済みの場合、ステータス更新が許可され請求データが自動紐付けされる', () => {
-    const dealInput = {
-      deal_id: 'DEAL-001',
-      customer_id: 'CUST-12345',
-      customer_name: '株式会社テストカンパニー',
-      amount: 1500000,
-      currency: 'JPY',
-      line_items: [
-        {
-          item_id: 'ITEM-001',
-          product_name: 'システム構築サービス',
-          quantity: 1,
-          unit_price: 1000000,
-          subtotal: 1000000,
-          tax_rate: 0.1,
-        },
-        {
-          item_id: 'ITEM-002',
-          product_name: 'サポート・運用サービス',
-          quantity: 1,
-          unit_price: 500000,
-          subtotal: 500000,
-          tax_rate: 0.1,
-        },
-      ],
-      status: '交渉中',
-      expected_billing_date: '2024-02-15',
-      billing_type: '納期後',
-    };
-
-    const result = updateDealStatusToContracted(dealInput);
-
-    // ステータスが『成約』に正常に更新されたことを確認
-    expect(result.status).toBe('成約');
-
-    // 顧客情報が正確に保持されていることを確認
-    expect(result.customer_id).toBe('CUST-12345');
-    expect(result.customer_name).toBe('株式会社テストカンパニー');
-
-    // 金額が正確に保持されていることを確認
-    expect(result.amount).toBe(1500000);
-    expect(result.currency).toBe('JPY');
-
-    // 明細データが正確に保持されていることを確認
-    expect(result.line_items).toHaveLength(2);
-    expect(result.line_items[0].item_id).toBe('ITEM-001');
-    expect(result.line_items[0].product_name).toBe('システム構築サービス');
-    expect(result.line_items[0].quantity).toBe(1);
-    expect(result.line_items[0].unit_price).toBe(1000000);
-    expect(result.line_items[0].subtotal).toBe(1000000);
-    expect(result.line_items[0].tax_rate).toBe(0.1);
-    expect(result.line_items[1].item_id).toBe('ITEM-002');
-    expect(result.line_items[1].product_name).toBe('サポート・運用サービス');
-    expect(result.line_items[1].quantity).toBe(1);
-    expect(result.line_items[1].unit_price).toBe(500000);
-    expect(result.line_items[1].subtotal).toBe(500000);
-    expect(result.line_items[1].tax_rate).toBe(0.1);
-
-    // 請求データが自動的に生成・紐付けされたことを確認
-    expect(result.billing_data).toBeDefined();
-    expect(result.billing_data.billing_id).toBeDefined();
-    expect(result.billing_data.customer_id).toBe('CUST-12345');
-    expect(result.billing_data.customer_name).toBe('株式会社テストカンパニー');
-
-    // 請求金額が合計金額に基づいて正確に計算されたことを確認
-    // 小計: 1500000、税金: 1000000 * 0.1 + 500000 * 0.1 = 150000
-    // 合計: 1500000 + 150000 = 1650000
-    expect(result.billing_data.subtotal).toBe(1500000);
-    expect(result.billing_data.tax_amount).toBe(150000);
-    expect(result.billing_data.total_amount).toBe(1650000);
-
-    // 請求明細が正確に生成されたことを確認
-    expect(result.billing_data.billing_line_items).toHaveLength(2);
-    expect(result.billing_data.billing_line_items[0].product_name).toBe(
-      'システム構築サービス'
-    );
-    expect(result.billing_data.billing_line_items[0].quantity).toBe(1);
-    expect(result.billing_data.billing_line_items[0].unit_price).toBe(1000000);
-    expect(result.billing_data.billing_line_items[0].line_amount).toBe(1000000);
-    expect(result.billing_data.billing_line_items[1].product_name).toBe(
-      'サポート・運用サービス'
-    );
-    expect(result.billing_data.billing_line_items[1].quantity).toBe(1);
-    expect(result.billing_data.billing_line_items[1].unit_price).toBe(500000);
-    expect(result.billing_data.billing_line_items[1].line_amount).toBe(500000);
-
-    // 請求タイプが正確に紐付けられたことを確認
-    expect(result.billing_data.billing_type).toBe('納期後');
-
-    // 請求発行予定日が正確に紐付けられたことを確認
-    expect(result.billing_data.expected_billing_date).toBe('2024-02-15');
-
-    // エラーフラグが立っていないことを確認
-    expect(result.error).toBeUndefined();
-
-    // ステータス履歴が記録されていることを確認
-    expect(result.status_history).toBeDefined();
-    expect(result.status_history.length).toBeGreaterThan(0);
-    const latest_status_record = result.status_history[
-      result.status_history.length - 1
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-140: [edge] 売上実績・請求状況の月次集計機能 - キャンセルまたは失注の商談が売上実績から除外される
+  test('should exclude cancelled and lost deals from monthly sales aggregation', () => {
+    const targetMonth = '2024-01';
+    
+    // 初期状態: 成約商談3件（金額1000、1500、2000）
+    const dealsBeforeCancellation = [
+      {
+        deal_id: 'D001',
+        customer_id: 'C001',
+        status: '成約',
+        amount: 1000,
+        billing_date: '2024-01-15',
+      },
+      {
+        deal_id: 'D002',
+        customer_id: 'C002',
+        status: '成約',
+        amount: 1500,
+        billing_date: '2024-01-16',
+      },
+      {
+        deal_id: 'D003',
+        customer_id: 'C003',
+        status: '成約',
+        amount: 2000,
+        billing_date: '2024-01-17',
+      },
     ];
-    expect(latest_status_record.from_status).toBe('交渉中');
-    expect(latest_status_record.to_status).toBe('成約');
-    expect(latest_status_record.updated_at).toBeDefined();
-  });
 
-  // 補足: 顧客情報が不足している場合
-  test('顧客情報が不足している場合、ステータス更新が拒否される', () => {
-    const dealInput = {
-      deal_id: 'DEAL-002',
-      customer_id: '',
-      customer_name: '',
-      amount: 1500000,
-      currency: 'JPY',
-      line_items: [
-        {
-          item_id: 'ITEM-003',
-          product_name: 'テスト商品',
-          quantity: 1,
-          unit_price: 1500000,
-          subtotal: 1500000,
-          tax_rate: 0.1,
-        },
-      ],
-      status: '交渉中',
-      expected_billing_date: '2024-02-15',
-      billing_type: '納期後',
-    };
+    // 月次集計実行（変更前）
+    const aggregationBefore = aggregateMonthlySalesAndBillingStatus({
+      target_month: targetMonth,
+      deals: dealsBeforeCancellation,
+    });
 
-    expect(() => updateDealStatusToContracted(dealInput)).toThrow(/顧客情報/);
-  });
+    // 変更前の売上合計: 1000 + 1500 + 2000 = 4500
+    expect(aggregationBefore.total_sales).toBe(4500);
+    expect(aggregationBefore.deal_count).toBe(3);
+    expect(aggregationBefore.billing_amount).toBe(4500);
 
-  // 補足: 金額が不足している場合
-  test('金額が不足している場合、ステータス更新が拒否される', () => {
-    const dealInput = {
-      deal_id: 'DEAL-003',
-      customer_id: 'CUST-12346',
-      customer_name: '株式会社テストカンパニー2',
-      amount: 0,
-      currency: 'JPY',
-      line_items: [
-        {
-          item_id: 'ITEM-004',
-          product_name: 'テスト商品',
-          quantity: 1,
-          unit_price: 0,
-          subtotal: 0,
-          tax_rate: 0.1,
-        },
-      ],
-      status: '交渉中',
-      expected_billing_date: '2024-02-15',
-      billing_type: '納期後',
-    };
+    // D001をキャンセルに変更
+    const dealsAfterFirstCancellation = [
+      {
+        deal_id: 'D001',
+        customer_id: 'C001',
+        status: 'キャンセル',
+        amount: 1000,
+        billing_date: '2024-01-15',
+      },
+      {
+        deal_id: 'D002',
+        customer_id: 'C002',
+        status: '成約',
+        amount: 1500,
+        billing_date: '2024-01-16',
+      },
+      {
+        deal_id: 'D003',
+        customer_id: 'C003',
+        status: '成約',
+        amount: 2000,
+        billing_date: '2024-01-17',
+      },
+    ];
 
-    expect(() => updateDealStatusToContracted(dealInput)).toThrow(/金額/);
-  });
+    // 月次集計実行（キャンセル後）
+    const aggregationAfterCancellation = aggregateMonthlySalesAndBillingStatus({
+      target_month: targetMonth,
+      deals: dealsAfterFirstCancellation,
+    });
 
-  // 補足: 明細データが不足している場合
-  test('明細データが不足している場合、ステータス更新が拒否される', () => {
-    const dealInput = {
-      deal_id: 'DEAL-004',
-      customer_id: 'CUST-12347',
-      customer_name: '株式会社テストカンパニー3',
-      amount: 1500000,
-      currency: 'JPY',
-      line_items: [],
-      status: '交渉中',
-      expected_billing_date: '2024-02-15',
-      billing_type: '納期後',
-    };
+    // キャンセル後の売上合計: 1500 + 2000 = 3500
+    expect(aggregationAfterCancellation.total_sales).toBe(3500);
+    expect(aggregationAfterCancellation.deal_count).toBe(2);
+    expect(aggregationAfterCancellation.billing_amount).toBe(3500);
 
-    expect(() => updateDealStatusToContracted(dealInput)).toThrow(/明細/);
+    // D002を失注に変更
+    const dealsAfterSecondCancellation = [
+      {
+        deal_id: 'D001',
+        customer_id: 'C001',
+        status: 'キャンセル',
+        amount: 1000,
+        billing_date: '2024-01-15',
+      },
+      {
+        deal_id: 'D002',
+        customer_id: 'C002',
+        status: '失注',
+        amount: 1500,
+        billing_date: '2024-01-16',
+      },
+      {
+        deal_id: 'D003',
+        customer_id: 'C003',
+        status: '成約',
+        amount: 2000,
+        billing_date: '2024-01-17',
+      },
+    ];
+
+    // 月次集計実行（失注後）
+    const aggregationAfterLoss = aggregateMonthlySalesAndBillingStatus({
+      target_month: targetMonth,
+      deals: dealsAfterSecondCancellation,
+    });
+
+    // 失注後の売上合計: 2000のみ
+    expect(aggregationAfterLoss.total_sales).toBe(2000);
+    expect(aggregationAfterLoss.deal_count).toBe(1);
+    expect(aggregationAfterLoss.billing_amount).toBe(2000);
+
+    // 売上合計の差分確認（変更前→キャンセル後）
+    const first_reduction = aggregationBefore.total_sales - aggregationAfterCancellation.total_sales;
+    expect(first_reduction).toBe(1000);
+
+    // 売上合計の差分確認（キャンセル後→失注後）
+    const second_reduction = aggregationAfterCancellation.total_sales - aggregationAfterLoss.total_sales;
+    expect(second_reduction).toBe(1500);
+
+    // エクスポート対象データ確認（キャンセル・失注商談を除外した集計）
+    const exportData = aggregationAfterLoss.export_data;
+    expect(exportData).toEqual([
+      {
+        deal_id: 'D003',
+        customer_id: 'C003',
+        status: '成約',
+        amount: 2000,
+        billing_date: '2024-01-17',
+      },
+    ]);
+
+    // 全商談リストでステータスが正しく反映されていることを確認
+    const fullDealList = aggregationAfterLoss.full_deal_list;
+    expect(fullDealList).toHaveLength(3);
+    
+    const cancelledDeal = fullDealList.find((d: any) => d.deal_id === 'D001');
+    expect(cancelledDeal.status).toBe('キャンセル');
+    
+    const lostDeal = fullDealList.find((d: any) => d.deal_id === 'D002');
+    expect(lostDeal.status).toBe('失注');
+    
+    const contractedDeal = fullDealList.find((d: any) => d.deal_id === 'D003');
+    expect(contractedDeal.status).toBe('成約');
+
+    // キャンセル・失注商談がレポート集計から除外されていることを最終確認
+    expect(aggregationAfterLoss.included_deal_ids).toEqual(['D003']);
+    expect(aggregationAfterLoss.excluded_deal_ids).toEqual(['D001', 'D002']);
   });
 });

@@ -1,60 +1,96 @@
-import { calculateMonthlyProgressRate } from '../../src/logic/it-1-3';
+import { aggregateMonthlySalesMetrics } from "../../src/logic/it-1-3";
 
-describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
-  // SCEN-114
-  test('当月売上集計機能 - 当月の受注件数と提案数から進捗率が正確に算出される', () => {
-    // Precondition: 営業管理システムに当月の全商談レコード（ステータス、金額、明細）が登録されている状態
-    // Trigger: 営業担当者が月次報告期限を確認し、システムからデータ抽出を開始したとき
-    // Outcome: 当月の売上合計、受注件数、進捗率（受注数÷提案数）を自動計算し、集計結果を表示
+describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
+  test("SCEN-114: 月次営業成績自動計算機能 - 当月の複数商談から売上合計、受注件数、進捗率が正しく計算される", () => {
+    // テストデータ：当月の複数商談レコード
+    const dealRecords = [
+      {
+        dealId: "DEAL001",
+        customerId: "CUST001",
+        dealAmount: 1000000,
+        status: "受注",
+        createdDate: "2024-04-05T10:00:00Z",
+      },
+      {
+        dealId: "DEAL002",
+        customerId: "CUST002",
+        dealAmount: 500000,
+        status: "受注",
+        createdDate: "2024-04-10T14:30:00Z",
+      },
+      {
+        dealId: "DEAL003",
+        customerId: "CUST003",
+        dealAmount: 750000,
+        status: "提案中",
+        createdDate: "2024-04-15T09:15:00Z",
+      },
+      {
+        dealId: "DEAL004",
+        customerId: "CUST004",
+        dealAmount: 300000,
+        status: "受注",
+        createdDate: "2024-04-20T16:45:00Z",
+      },
+      {
+        dealId: "DEAL005",
+        customerId: "CUST005",
+        dealAmount: 200000,
+        status: "初期接触",
+        createdDate: "2024-04-25T11:20:00Z",
+      },
+    ];
 
-    const monthly_closed_count = 15;
-    const monthly_proposal_count = 20;
-    const expected_progress_rate = 75.0;
+    const targetMonth = "2024-04";
 
-    const result = calculateMonthlyProgressRate(
-      monthly_closed_count,
-      monthly_proposal_count
-    );
+    // 関数実行
+    const result = aggregateMonthlySalesMetrics(dealRecords, targetMonth);
 
-    // 進捗率が正確に算出されること: 15 ÷ 20 × 100 = 75%
-    expect(result).toBe(expected_progress_rate);
+    // 期待値の計算
+    // 売上合計：全商談の金額合計 = 1,000,000 + 500,000 + 750,000 + 300,000 + 200,000 = 2,750,000
+    const expectedTotalSales = 2750000;
 
-    // 境界値テスト: 受注件数が0の場合は0%
-    const boundary_zero_result = calculateMonthlyProgressRate(0, 10);
-    expect(boundary_zero_result).toBe(0);
+    // 受注件数：status が「受注」の商談件数 = 3件（DEAL001, DEAL002, DEAL004）
+    const expectedClosedDealsCount = 3;
 
-    // 境界値テスト: 受注件数と提案数が同じ場合は100%
-    const boundary_full_result = calculateMonthlyProgressRate(10, 10);
-    expect(boundary_full_result).toBe(100);
+    // 提案数：全商談件数 = 5件
+    const expectedProposalCount = 5;
 
-    // 小数点第2位までの精度で正確に計算されることを確認
-    // 例: 1 ÷ 3 × 100 = 33.33...
-    const decimal_result = calculateMonthlyProgressRate(1, 3);
-    expect(decimal_result).toBe(33.33);
+    // 進捗率：受注件数 ÷ 提案数 = 3 ÷ 5 = 0.60（小数第2位まで）
+    const expectedProgressRate = 0.6;
 
-    // 端数処理が適切に行われていることを確認
-    // 例: 2 ÷ 3 × 100 = 66.66...
-    const rounding_result = calculateMonthlyProgressRate(2, 3);
-    expect(rounding_result).toBe(66.67);
+    // 検証：売上合計
+    expect(result.totalSales).toBe(expectedTotalSales);
 
-    // エラーテスト: 提案数が0の場合は例外をスロー
-    expect(() => {
-      calculateMonthlyProgressRate(5, 0);
-    }).toThrow(/提案数/);
+    // 検証：受注件数
+    expect(result.closedDealsCount).toBe(expectedClosedDealsCount);
 
-    // エラーテスト: 受注件数が負数の場合は例外をスロー
-    expect(() => {
-      calculateMonthlyProgressRate(-1, 10);
-    }).toThrow(/受注件数/);
+    // 検証：提案数
+    expect(result.proposalCount).toBe(expectedProposalCount);
 
-    // エラーテスト: 提案数が負数の場合は例外をスロー
-    expect(() => {
-      calculateMonthlyProgressRate(10, -1);
-    }).toThrow(/提案数/);
+    // 検証：進捗率（小数第2位まで）
+    expect(result.progressRate).toBeCloseTo(expectedProgressRate, 2);
 
-    // エラーテスト: 受注件数が提案数より多い場合は例外をスロー
-    expect(() => {
-      calculateMonthlyProgressRate(25, 20);
-    }).toThrow(/受注件数/);
+    // 検証：計算値の型と構造
+    expect(typeof result.totalSales).toBe("number");
+    expect(typeof result.closedDealsCount).toBe("number");
+    expect(typeof result.proposalCount).toBe("number");
+    expect(typeof result.progressRate).toBe("number");
+
+    // 検証：すべての計算値が正の数
+    expect(result.totalSales).toBeGreaterThan(0);
+    expect(result.closedDealsCount).toBeGreaterThan(0);
+    expect(result.proposalCount).toBeGreaterThan(0);
+    expect(result.progressRate).toBeGreaterThan(0);
+
+    // 検証：進捗率が0以上1以下
+    expect(result.progressRate).toBeLessThanOrEqual(1);
+
+    // 検証：受注件数が提案数以下
+    expect(result.closedDealsCount).toBeLessThanOrEqual(result.proposalCount);
+
+    // 検証：タイムスタンプが存在（保存時刻）
+    expect(result.calculatedAt).toBeDefined();
+    expect(typeof result.calculatedAt).toBe("string");
   });
 });

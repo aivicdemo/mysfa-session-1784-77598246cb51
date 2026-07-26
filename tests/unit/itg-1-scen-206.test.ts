@@ -1,35 +1,55 @@
-import { reconcileDealStatusAndInvoiceIssueStatus } from '../../src/logic/it-1784969823049-1-1-1';
+import { extractBillingTargetDataByAmountRange } from '../../src/logic/it-1-1';
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
+describe('見積・注文・請求書の自動生成機能', () => {
   // SCEN-206
-  test('照合対象の商談または請求書が存在しない場合にエラーが発生する', () => {
-    // Precondition: 営業管理システムにログイン済みで、存在しない商談IDまたは請求書IDを指定する状態
+  test('金額の境界値（指定範囲の最小値・最大値）が正確に処理される', () => {
+    const billing_records = [
+      { id: 1, customer_id: 'C001', amount: 0, status: 'pending' },
+      { id: 2, customer_id: 'C002', amount: 50000, status: 'pending' },
+      { id: 3, customer_id: 'C003', amount: 500000, status: 'pending' },
+      { id: 4, customer_id: 'C004', amount: 999999999, status: 'pending' },
+      { id: 5, customer_id: 'C005', amount: 1000000000, status: 'pending' },
+      { id: 6, customer_id: 'C006', amount: -1, status: 'pending' },
+    ];
 
-    // Trigger 1: 存在しない商談IDで照合機能を実行
-    const nonExistentDealId = 'DEAL-99999';
-    const invoiceId = 'INV-00001';
+    const min_amount = 0;
+    const max_amount = 999999999;
 
-    expect(() =>
-      reconcileDealStatusAndInvoiceIssueStatus({
-        dealId: nonExistentDealId,
-        invoiceId: invoiceId,
-      })
-    ).toThrow(/商談/);
+    const result = extractBillingTargetDataByAmountRange(
+      billing_records,
+      min_amount,
+      max_amount
+    );
 
-    // Trigger 2: 存在しない請求書IDで照合機能を実行
-    const dealId = 'DEAL-00001';
-    const nonExistentInvoiceId = 'INV-99999';
+    expect(result).toHaveLength(4);
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 1, amount: 0 }),
+        expect.objectContaining({ id: 2, amount: 50000 }),
+        expect.objectContaining({ id: 3, amount: 500000 }),
+        expect.objectContaining({ id: 4, amount: 999999999 }),
+      ])
+    );
 
-    expect(() =>
-      reconcileDealStatusAndInvoiceIssueStatus({
-        dealId: dealId,
-        invoiceId: nonExistentInvoiceId,
-      })
-    ).toThrow(/請求書/);
+    const result_ids = result.map((r) => r.id);
+    expect(result_ids).not.toContain(5);
+    expect(result_ids).not.toContain(6);
 
-    // Outcome: 照合対象の商談が見つからない場合は「商談」を含むエラーメッセージが表示され、
-    // 照合対象の請求書が見つからない場合は「請求書」を含むエラーメッセージが表示される。
-    // 自動照合処理が中止されることが保証される。
-    // (エラーがスロー後、以降の処理は実行されない)
+    const has_min_boundary = result.some((r) => r.amount === min_amount);
+    expect(has_min_boundary).toBe(true);
+
+    const has_max_boundary = result.some((r) => r.amount === max_amount);
+    expect(has_max_boundary).toBe(true);
+
+    const has_below_min = result.some((r) => r.amount < min_amount);
+    expect(has_below_min).toBe(false);
+
+    const has_above_max = result.some((r) => r.amount > max_amount);
+    expect(has_above_max).toBe(false);
+
+    const has_middle_value = result.some(
+      (r) => r.amount > min_amount && r.amount < max_amount
+    );
+    expect(has_middle_value).toBe(true);
   });
 });

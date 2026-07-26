@@ -1,81 +1,57 @@
-import { detectDelayedCases } from "../../src/logic/it-1784969823049-1-1-1";
+import { describe, it, expect, beforeEach } from "@jest/globals";
+import { validateInvoiceForApproval } from "../../src/logic/it-1784969823049-1-1-1";
 
 describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
-  // SCEN-212
-  test("請求予定日を超過した『受注』『完了』案件を『遅延案件』として正しく特定できる", () => {
-    const referenceDate = new Date("2024-01-15T00:00:00Z");
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-    const dealA = {
-      dealId: "A",
-      dealName: "案件A",
-      status: "受注",
-      requestedBillingDate: new Date("2023-12-16T00:00:00Z"),
-      invoiceIssuanceDate: null,
+  it("SCEN-212: [normal] 請求書承認検証 - 金額・顧客情報・明細が全て一致した請求書が承認可能と判定される", () => {
+    // Arrange: テスト用の請求書データを準備
+    const invoice_data = {
+      invoice_id: "INV-20240415-001",
+      customer_id: "CUST-TEST-001",
+      customer_name: "テスト太郎",
+      invoice_amount: 100000,
+      invoice_date: "2024-04-15",
+      line_items: [
+        {
+          line_item_id: "LINE-001",
+          product_name: "商品A",
+          quantity: 10,
+          unit_price: 10000,
+          line_amount: 100000,
+        },
+      ],
+      tax_amount: 0,
+      total_amount: 100000,
     };
 
-    const dealB = {
-      dealId: "B",
-      dealName: "案件B",
-      status: "完了",
-      requestedBillingDate: new Date("2023-11-16T00:00:00Z"),
-      invoiceIssuanceDate: null,
+    const expected_validation_result = {
+      approval_status: "承認可能",
+      is_valid: true,
+      validation_details: {
+        amount_match: true,
+        customer_info_match: true,
+        line_items_match: true,
+        required_fields_complete: true,
+        errors: [],
+      },
     };
 
-    const dealC = {
-      dealId: "C",
-      dealName: "案件C",
-      status: "受注",
-      requestedBillingDate: new Date("2024-01-20T00:00:00Z"),
-      invoiceIssuanceDate: null,
-    };
+    // Act: 請求書の承認検証処理を実行
+    const validation_result = validateInvoiceForApproval(invoice_data);
 
-    const dealD = {
-      dealId: "D",
-      dealName: "案件D",
-      status: "完了",
-      requestedBillingDate: new Date("2023-12-31T00:00:00Z"),
-      invoiceIssuanceDate: new Date("2024-01-05T00:00:00Z"),
-    };
-
-    const deals = [dealA, dealB, dealC, dealD];
-
-    const result = detectDelayedCases(deals, referenceDate);
-
-    expect(result).toBeDefined();
-    expect(Array.isArray(result.delayedCases)).toBe(true);
-    expect(result.delayedCases.length).toBe(2);
-
-    const delayedDealIds = result.delayedCases.map(
-      (item: { dealId: string }) => item.dealId
+    // Assert: 検証結果が期待値と一致することを確認
+    expect(validation_result.approval_status).toBe("承認可能");
+    expect(validation_result.is_valid).toBe(true);
+    expect(validation_result.validation_details.amount_match).toBe(true);
+    expect(validation_result.validation_details.customer_info_match).toBe(true);
+    expect(validation_result.validation_details.line_items_match).toBe(true);
+    expect(validation_result.validation_details.required_fields_complete).toBe(
+      true
     );
-    expect(delayedDealIds).toContain("A");
-    expect(delayedDealIds).toContain("B");
-    expect(delayedDealIds).not.toContain("C");
-    expect(delayedDealIds).not.toContain("D");
-
-    const delayedCaseA = result.delayedCases.find(
-      (item: { dealId: string }) => item.dealId === "A"
-    );
-    expect(delayedCaseA).toBeDefined();
-    expect(delayedCaseA.dealName).toBe("案件A");
-    expect(delayedCaseA.status).toBe("受注");
-    expect(delayedCaseA.requestedBillingDate).toEqual(
-      new Date("2023-12-16T00:00:00Z")
-    );
-    expect(delayedCaseA.delayDays).toBe(30);
-
-    const delayedCaseB = result.delayedCases.find(
-      (item: { dealId: string }) => item.dealId === "B"
-    );
-    expect(delayedCaseB).toBeDefined();
-    expect(delayedCaseB.dealName).toBe("案件B");
-    expect(delayedCaseB.status).toBe("完了");
-    expect(delayedCaseB.requestedBillingDate).toEqual(
-      new Date("2023-11-16T00:00:00Z")
-    );
-    expect(delayedCaseB.delayDays).toBe(60);
-
-    expect(result.totalDelayedCount).toBe(2);
-    expect(result.totalDelayDays).toBe(90);
+    expect(validation_result.validation_details.errors.length).toBe(0);
+    expect(validation_result).toEqual(expected_validation_result);
   });
 });

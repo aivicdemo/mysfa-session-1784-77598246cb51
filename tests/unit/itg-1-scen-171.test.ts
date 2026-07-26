@@ -1,83 +1,100 @@
-import { detectUnbilledAndDelayedDeals } from '../../src/logic/it-1784969823049-1-1-1';
+import { detectOverdueBillingCases } from '../../src/logic/it-1784969823049-1-1-1';
 
 describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
   // SCEN-171
-  test('商談ステータスが『受注』でも請求書が発行されていない案件が未請求案件として検出される', () => {
-    const testDealData = [
+  test('商談ステータスが「完了」かつ請求予定日を超過した案件が遅延案件リストに含まれる', () => {
+    const today = new Date('2024-04-15T00:00:00Z');
+    const systemCurrentDate = new Date('2024-04-15T00:00:00Z');
+
+    const dealRecords = [
       {
-        deal_id: 'DEAL-001',
-        customer_name: 'テスト顧客A',
-        status: '受注',
-        amount: 500000,
-        invoice_issued_date: null,
-        invoice_status: '未発行',
-        expected_invoice_date: new Date('2024-01-15').toISOString(),
+        dealId: 'DEAL001',
+        customerId: 'CUST001',
+        customerName: '顧客A',
+        status: '完了',
+        amount: 100000,
+        billingScheduledDate: new Date('2024-04-10T00:00:00Z'),
+        billingIssuedDate: null,
+        billingAmount: null,
       },
       {
-        deal_id: 'DEAL-002',
-        customer_name: 'テスト顧客B',
+        dealId: 'DEAL002',
+        customerId: 'CUST002',
+        customerName: '顧客B',
         status: '受注',
-        amount: 300000,
-        invoice_issued_date: new Date('2024-01-10').toISOString(),
-        invoice_status: '発行済',
-        expected_invoice_date: new Date('2024-01-12').toISOString(),
+        amount: 50000,
+        billingScheduledDate: new Date('2024-04-20T00:00:00Z'),
+        billingIssuedDate: null,
+        billingAmount: null,
       },
       {
-        deal_id: 'DEAL-003',
-        customer_name: 'テスト顧客C',
-        status: '提案中',
-        amount: 200000,
-        invoice_issued_date: null,
-        invoice_status: '未発行',
-        expected_invoice_date: new Date('2024-02-01').toISOString(),
+        dealId: 'DEAL003',
+        customerId: 'CUST001',
+        customerName: '顧客A',
+        status: '完了',
+        amount: 75000,
+        billingScheduledDate: new Date('2024-04-08T00:00:00Z'),
+        billingIssuedDate: null,
+        billingAmount: null,
       },
       {
-        deal_id: 'DEAL-004',
-        customer_name: 'テスト顧客D',
-        status: '受注',
-        amount: 450000,
-        invoice_issued_date: new Date('2024-01-05').toISOString(),
-        invoice_status: '発行済',
-        expected_invoice_date: new Date('2024-01-08').toISOString(),
+        dealId: 'DEAL004',
+        customerId: 'CUST003',
+        customerName: '顧客C',
+        status: '完了',
+        amount: 120000,
+        billingScheduledDate: new Date('2024-04-16T00:00:00Z'),
+        billingIssuedDate: null,
+        billingAmount: null,
+      },
+      {
+        dealId: 'DEAL005',
+        customerId: 'CUST004',
+        customerName: '顧客D',
+        status: '完了',
+        amount: 30000,
+        billingScheduledDate: new Date('2024-04-12T00:00:00Z'),
+        billingIssuedDate: new Date('2024-04-14T00:00:00Z'),
+        billingAmount: 30000,
       },
     ];
 
-    const checkDate = new Date('2024-01-20T00:00:00Z');
+    const result = detectOverdueBillingCases(
+      dealRecords,
+      systemCurrentDate
+    );
 
-    const result = detectUnbilledAndDelayedDeals(testDealData, checkDate);
+    expect(result).toEqual({
+      overdueCount: 2,
+      overdueCases: [
+        {
+          dealId: 'DEAL001',
+          customerId: 'CUST001',
+          customerName: '顧客A',
+          status: '完了',
+          amount: 100000,
+          billingScheduledDate: new Date('2024-04-10T00:00:00Z'),
+          billingIssuedDate: null,
+          billingAmount: null,
+          daysOverdue: 5,
+        },
+        {
+          dealId: 'DEAL003',
+          customerId: 'CUST001',
+          customerName: '顧客A',
+          status: '完了',
+          amount: 75000,
+          billingScheduledDate: new Date('2024-04-08T00:00:00Z'),
+          billingIssuedDate: null,
+          billingAmount: null,
+          daysOverdue: 7,
+        },
+      ],
+      detectionTimestamp: systemCurrentDate,
+    });
 
-    expect(result).toBeDefined();
-    expect(result.unbilled_deals).toBeDefined();
-    expect(result.delayed_deals).toBeDefined();
-
-    const unbilledDeals = result.unbilled_deals;
-    expect(unbilledDeals.length).toBe(1);
-    expect(unbilledDeals[0].deal_id).toBe('DEAL-001');
-    expect(unbilledDeals[0].customer_name).toBe('テスト顧客A');
-    expect(unbilledDeals[0].status).toBe('受注');
-    expect(unbilledDeals[0].amount).toBe(500000);
-    expect(unbilledDeals[0].invoice_status).toBe('未発行');
-    expect(unbilledDeals[0].invoice_issued_date).toBeNull();
-    expect(unbilledDeals[0].expected_invoice_date).toBe(new Date('2024-01-15').toISOString());
-
-    const dealDetail = result.unbilled_deals[0];
-    expect(dealDetail.status).toBe('受注');
-    expect(dealDetail.invoice_status).toBe('未発行');
-
-    const delayedDeals = result.delayed_deals;
-    expect(delayedDeals).toBeDefined();
-    expect(Array.isArray(delayedDeals)).toBe(true);
-
-    const allDetectedDealIds = [
-      ...unbilledDeals.map((d: any) => d.deal_id),
-      ...delayedDeals.map((d: any) => d.deal_id),
-    ];
-    expect(allDetectedDealIds.includes('DEAL-001')).toBe(true);
-
-    expect(result.total_unbilled_amount).toBe(500000);
-
-    expect(unbilledDeals.some((d: any) => d.deal_id === 'DEAL-002')).toBe(false);
-    expect(unbilledDeals.some((d: any) => d.deal_id === 'DEAL-003')).toBe(false);
-    expect(unbilledDeals.some((d: any) => d.deal_id === 'DEAL-004')).toBe(false);
+    expect(result.overdueCases[0].daysOverdue).toBe(5);
+    expect(result.overdueCases[1].daysOverdue).toBe(7);
+    expect(result.overdueCount).toBe(2);
   });
 });

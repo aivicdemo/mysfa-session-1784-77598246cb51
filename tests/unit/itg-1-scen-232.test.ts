@@ -1,174 +1,60 @@
-import { validateDealStatusTransition } from '../../src/logic/it-1784969823049-2-1-1';
+import { calculateAnnualSavings } from '../../src/logic/it-1-3';
 
-describe('商談レコードの進捗ステータスと提案内容の入力・保存機能', () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-232
-  test('定義済みステータス値に基づいて正当な商談ステータス遷移が承認される', () => {
-    const deal_id = 'DEAL-20240115-001';
-    const customer_id = 'CUST-20240115-001';
-    const deal_amount = 500000;
+  test('ライセンス費用対効果分析機能 - Salesforceライセンス年間費用から自社システム運用コストを差し引き、年間削減額が正確に算出される', () => {
+    // 入力データ
+    const salesforceAnnualCost = 1200000;
+    const internalSystemOperationCost = 300000;
 
-    // ステップ1: リード → 初期接触への遷移検証
-    const transition_1_result = validateDealStatusTransition({
-      deal_id: deal_id,
-      current_status: 'リード',
-      new_status: '初期接触',
-      deal_amount: deal_amount,
-      customer_id: customer_id,
-      transition_timestamp: new Date('2024-01-15T09:00:00Z'),
+    // 実行
+    const result = calculateAnnualSavings({
+      salesforceAnnualCost,
+      internalSystemOperationCost,
     });
 
-    expect(transition_1_result).toEqual({
-      is_valid: true,
-      status_code: 'APPROVED',
-      message: 'ステータス遷移が承認されました',
-      allowed_next_statuses: ['提案', 'リード'],
-      transition_recorded: true,
+    // 期待値: 1,200,000 - 300,000 = 900,000
+    expect(result.annualSavingsAmount).toBe(900000);
+
+    // 通貨形式での表示を確認
+    expect(result.annualSavingsFormatted).toBe('¥900,000');
+
+    // 小数点以下が存在する場合の四捨五入を確認
+    const resultWithDecimal = calculateAnnualSavings({
+      salesforceAnnualCost: 1200000.567,
+      internalSystemOperationCost: 300000.789,
     });
 
-    // ステップ2: 初期接触 → 提案への遷移検証
-    const transition_2_result = validateDealStatusTransition({
-      deal_id: deal_id,
-      current_status: '初期接触',
-      new_status: '提案',
-      deal_amount: deal_amount,
-      customer_id: customer_id,
-      transition_timestamp: new Date('2024-01-15T10:30:00Z'),
+    // 1,200,000.567 - 300,000.789 = 899,999.778 → 四捨五入で 900,000
+    expect(resultWithDecimal.annualSavingsAmount).toBe(900000);
+    expect(resultWithDecimal.annualSavingsFormatted).toBe('¥900,000');
+
+    // 削減額が負数になるケース（自社システム運用コストがSalesforceライセンス費用より高い）
+    const resultNegative = calculateAnnualSavings({
+      salesforceAnnualCost: 500000,
+      internalSystemOperationCost: 800000,
     });
 
-    expect(transition_2_result).toEqual({
-      is_valid: true,
-      status_code: 'APPROVED',
-      message: 'ステータス遷移が承認されました',
-      allowed_next_statuses: ['交渉中', '初期接触'],
-      transition_recorded: true,
+    // 500,000 - 800,000 = -300,000
+    expect(resultNegative.annualSavingsAmount).toBe(-300000);
+    expect(resultNegative.annualSavingsFormatted).toBe('-¥300,000');
+
+    // 削減額がゼロになるケース
+    const resultZero = calculateAnnualSavings({
+      salesforceAnnualCost: 500000,
+      internalSystemOperationCost: 500000,
     });
 
-    // ステップ3: 提案 → 交渉中への遷移検証
-    const transition_3_result = validateDealStatusTransition({
-      deal_id: deal_id,
-      current_status: '提案',
-      new_status: '交渉中',
-      deal_amount: deal_amount,
-      customer_id: customer_id,
-      transition_timestamp: new Date('2024-01-15T12:00:00Z'),
-    });
+    expect(resultZero.annualSavingsAmount).toBe(0);
+    expect(resultZero.annualSavingsFormatted).toBe('¥0');
 
-    expect(transition_3_result).toEqual({
-      is_valid: true,
-      status_code: 'APPROVED',
-      message: 'ステータス遷移が承認されました',
-      allowed_next_statuses: ['成約', '提案'],
-      transition_recorded: true,
-    });
+    // ROI計算を確認（年間削減額 ÷ 初期投資額で投資回収期間を示唆）
+    expect(result.roi).toBeDefined();
+    expect(typeof result.roi).toBe('number');
 
-    // ステップ4: 交渉中 → 成約への遷移検証
-    const transition_4_result = validateDealStatusTransition({
-      deal_id: deal_id,
-      current_status: '交渉中',
-      new_status: '成約',
-      deal_amount: deal_amount,
-      customer_id: customer_id,
-      transition_timestamp: new Date('2024-01-15T14:00:00Z'),
-    });
-
-    expect(transition_4_result).toEqual({
-      is_valid: true,
-      status_code: 'APPROVED',
-      message: 'ステータス遷移が承認されました',
-      allowed_next_statuses: ['完了'],
-      transition_recorded: true,
-    });
-
-    // ステップ5: 変更履歴の検証
-    const transition_history_result = validateDealStatusTransition({
-      deal_id: deal_id,
-      current_status: 'HISTORY_CHECK',
-      new_status: 'HISTORY_CHECK',
-      deal_amount: deal_amount,
-      customer_id: customer_id,
-      transition_timestamp: new Date('2024-01-15T14:00:00Z'),
-      check_history: true,
-    });
-
-    expect(transition_history_result.transition_history).toBeDefined();
-    expect(transition_history_result.transition_history).toHaveLength(4);
-    expect(transition_history_result.transition_history[0]).toEqual({
-      from_status: 'リード',
-      to_status: '初期接触',
-      timestamp: new Date('2024-01-15T09:00:00Z'),
-      deal_id: deal_id,
-    });
-    expect(transition_history_result.transition_history[1]).toEqual({
-      from_status: '初期接触',
-      to_status: '提案',
-      timestamp: new Date('2024-01-15T10:30:00Z'),
-      deal_id: deal_id,
-    });
-    expect(transition_history_result.transition_history[2]).toEqual({
-      from_status: '提案',
-      to_status: '交渉中',
-      timestamp: new Date('2024-01-15T12:00:00Z'),
-      deal_id: deal_id,
-    });
-    expect(transition_history_result.transition_history[3]).toEqual({
-      from_status: '交渉中',
-      to_status: '成約',
-      timestamp: new Date('2024-01-15T14:00:00Z'),
-      deal_id: deal_id,
-    });
-
-    // 不正な遷移の検証（失注状態から成約への遷移は不可）
-    const invalid_transition_result = validateDealStatusTransition({
-      deal_id: 'DEAL-20240115-002',
-      current_status: '失注',
-      new_status: '成約',
-      deal_amount: deal_amount,
-      customer_id: customer_id,
-      transition_timestamp: new Date('2024-01-16T09:00:00Z'),
-    });
-
-    expect(invalid_transition_result).toEqual({
-      is_valid: false,
-      status_code: 'REJECTED',
-      message: '不正なステータス遷移です',
-      allowed_next_statuses: [],
-      transition_recorded: false,
-    });
-
-    // エラー: ステータスマスタに存在しないステータス値
-    expect(() =>
-      validateDealStatusTransition({
-        deal_id: 'DEAL-20240115-003',
-        current_status: '無効なステータス',
-        new_status: '初期接触',
-        deal_amount: deal_amount,
-        customer_id: customer_id,
-        transition_timestamp: new Date('2024-01-16T10:00:00Z'),
-      }),
-    ).toThrow(/ステータスマスタ/);
-
-    // エラー: 空の deal_id
-    expect(() =>
-      validateDealStatusTransition({
-        deal_id: '',
-        current_status: 'リード',
-        new_status: '初期接触',
-        deal_amount: deal_amount,
-        customer_id: customer_id,
-        transition_timestamp: new Date('2024-01-16T11:00:00Z'),
-      }),
-    ).toThrow(/商談ID/);
-
-    // エラー: 無効な deal_amount（負の値）
-    expect(() =>
-      validateDealStatusTransition({
-        deal_id: 'DEAL-20240115-004',
-        current_status: 'リード',
-        new_status: '初期接触',
-        deal_amount: -50000,
-        customer_id: customer_id,
-        transition_timestamp: new Date('2024-01-16T12:00:00Z'),
-      }),
-    ).toThrow(/金額/);
+    // 結果構造の検証
+    expect(result).toHaveProperty('annualSavingsAmount');
+    expect(result).toHaveProperty('annualSavingsFormatted');
+    expect(result).toHaveProperty('roi');
   });
 });

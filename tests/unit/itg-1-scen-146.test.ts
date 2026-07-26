@@ -1,53 +1,99 @@
-import { describe, test, expect, beforeEach } from '@jest/globals';
-import {
-  validateDealAmount,
-  generateEstimateOrderInvoice,
-  verifyGeneratedDocuments,
-} from '../../src/logic/it-1-1';
+import { filterPurchaseHistoryByPeriod } from "../../src/logic/it-1";
 
-describe('見積・注文・請求書自動生成機能', () => {
+describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
   // SCEN-146
-  test('商談金額が0円の場合、警告が表示される', () => {
-    const deal_data = {
-      deal_id: 'DEAL-20240115-001',
-      deal_name: 'テスト商談',
-      customer_id: 'CUST-0001',
-      customer_name: '株式会社テスト',
-      deal_amount: 0,
-      deal_date: '2024-01-15T10:00:00Z',
-      status: '提案中',
-    };
+  test("[normal] 過去購買履歴フィルタリング機能 - 設定された対象期間内の購買履歴のみが正しくフィルタリングされて表示される", () => {
+    const purchase_history = [
+      {
+        purchase_id: "PH001",
+        customer_id: "CUST001",
+        purchase_date: new Date("2023-12-15"),
+        amount: 50000,
+        product_name: "製品A",
+      },
+      {
+        purchase_id: "PH002",
+        customer_id: "CUST001",
+        purchase_date: new Date("2024-01-10"),
+        amount: 100000,
+        product_name: "製品B",
+      },
+      {
+        purchase_id: "PH003",
+        customer_id: "CUST001",
+        purchase_date: new Date("2024-02-20"),
+        amount: 75000,
+        product_name: "製品C",
+      },
+      {
+        purchase_id: "PH004",
+        customer_id: "CUST001",
+        purchase_date: new Date("2024-03-30"),
+        amount: 120000,
+        product_name: "製品D",
+      },
+      {
+        purchase_id: "PH005",
+        customer_id: "CUST001",
+        purchase_date: new Date("2024-04-05"),
+        amount: 60000,
+        product_name: "製品E",
+      },
+    ];
 
-    const validation_result = validateDealAmount(deal_data);
+    const period_start = new Date("2024-01-01");
+    const period_end = new Date("2024-03-31");
 
-    expect(validation_result.is_valid).toBe(false);
-    expect(validation_result.warning_message).toMatch(/金額/);
-    expect(validation_result.warning_message).toMatch(/0円/);
+    const filtered_result = filterPurchaseHistoryByPeriod(
+      purchase_history,
+      period_start,
+      period_end
+    );
 
-    const estimate_data = {
-      deal_id: deal_data.deal_id,
-      customer_id: deal_data.customer_id,
-      customer_name: deal_data.customer_name,
-      deal_amount: deal_data.deal_amount,
-      deal_name: deal_data.deal_name,
-      deal_date: deal_data.deal_date,
-    };
+    expect(filtered_result).toHaveLength(3);
 
-    const generated_docs = generateEstimateOrderInvoice(estimate_data);
+    expect(filtered_result[0]).toEqual({
+      purchase_id: "PH002",
+      customer_id: "CUST001",
+      purchase_date: new Date("2024-01-10"),
+      amount: 100000,
+      product_name: "製品B",
+    });
 
-    expect(generated_docs).toBeDefined();
-    expect(generated_docs.estimate).toBeDefined();
-    expect(generated_docs.order).toBeDefined();
-    expect(generated_docs.invoice).toBeDefined();
+    expect(filtered_result[1]).toEqual({
+      purchase_id: "PH003",
+      customer_id: "CUST001",
+      purchase_date: new Date("2024-02-20"),
+      amount: 75000,
+      product_name: "製品C",
+    });
 
-    expect(generated_docs.estimate.total_amount).toBe(0);
-    expect(generated_docs.order.total_amount).toBe(0);
-    expect(generated_docs.invoice.total_amount).toBe(0);
+    expect(filtered_result[2]).toEqual({
+      purchase_id: "PH004",
+      customer_id: "CUST001",
+      purchase_date: new Date("2024-03-30"),
+      amount: 120000,
+      product_name: "製品D",
+    });
 
-    const verify_result = verifyGeneratedDocuments(generated_docs);
+    const all_within_period = filtered_result.every(
+      (record) =>
+        record.purchase_date >= period_start &&
+        record.purchase_date <= period_end
+    );
+    expect(all_within_period).toBe(true);
 
-    expect(verify_result.status).toBe('warning');
-    expect(verify_result.messages).toContain(/金額/);
-    expect(verify_result.is_processable).toBe(true);
+    const period_outside_items = purchase_history.filter(
+      (record) =>
+        record.purchase_date < period_start || record.purchase_date > period_end
+    );
+    const outside_in_filtered = filtered_result.some((item) =>
+      period_outside_items.some(
+        (outside) => outside.purchase_id === item.purchase_id
+      )
+    );
+    expect(outside_in_filtered).toBe(false);
+
+    expect(filtered_result.length).toBe(3);
   });
 });

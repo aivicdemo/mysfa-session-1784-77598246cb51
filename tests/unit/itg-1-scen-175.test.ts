@@ -1,47 +1,125 @@
-import { updateDealStatusWithProposal } from '../../src/logic/it-1784969823049-2-1-1';
+import { generateInvoiceFromDealLineItems } from '../../src/logic/it-1-1';
 
-describe('商談レコードの進捗ステータスと提案内容の入力・保存機能', () => {
+describe('見積・注文・請求書の自動生成機能', () => {
   // SCEN-175
-  test('商談ステータスの変更時に提案内容が同時に入力・保存される', () => {
-    const dealRecord = {
-      deal_id: 'DEAL-001',
-      customer_id: 'CUST-12345',
-      customer_name: '株式会社テスト',
-      current_status: '初期接触',
-      proposal_content: '',
-      deal_amount: 500000,
-      target_close_date: '2024-02-15',
-      created_at: '2024-01-10T09:00:00Z',
-      updated_at: '2024-01-10T09:00:00Z',
+  test('複数の請求明細行が統一フォーマットの請求書に正しく反映される', () => {
+    const dealLineItems = [
+      {
+        productName: 'ソフトウェアライセンス',
+        quantity: 5,
+        unitPrice: 10000,
+        taxRate: 0.1,
+      },
+      {
+        productName: 'サポートサービス',
+        quantity: 12,
+        unitPrice: 5000,
+        taxRate: 0.1,
+      },
+      {
+        productName: 'カスタマイズ開発',
+        quantity: 1,
+        unitPrice: 500000,
+        taxRate: 0.1,
+      },
+    ];
+
+    const customerInfo = {
+      customerId: 'CUST-001',
+      customerName: '株式会社テスト',
+      address: '東京都渋谷区テスト1-1-1',
+      contactPerson: '山田太郎',
+      email: 'yamada@test-company.jp',
     };
 
-    const updatePayload = {
-      deal_id: 'DEAL-001',
-      new_status: '提案中',
-      proposal_content: '提案内容テスト：製品A導入',
-      updated_by: 'user-001',
-      updated_at: '2024-01-15T11:00:00Z',
+    const dealInfo = {
+      dealId: 'DEAL-20240415-001',
+      dealAmount: 610000,
+      dealStatus: '受注',
+      invoiceDate: '2024-04-15',
     };
 
-    const result = updateDealStatusWithProposal(dealRecord, updatePayload);
+    const result = generateInvoiceFromDealLineItems(
+      dealLineItems,
+      customerInfo,
+      dealInfo
+    );
 
-    expect(result).toEqual({
-      deal_id: 'DEAL-001',
-      customer_id: 'CUST-12345',
-      customer_name: '株式会社テスト',
-      current_status: '提案中',
-      proposal_content: '提案内容テスト：製品A導入',
-      deal_amount: 500000,
-      target_close_date: '2024-02-15',
-      created_at: '2024-01-10T09:00:00Z',
-      updated_at: '2024-01-15T11:00:00Z',
-      updated_by: 'user-001',
-      is_saved: true,
-      save_message: '商談情報を保存しました',
+    // 明細行の行数検証
+    expect(result.lineItems.length).toBe(3);
+
+    // 各明細行の商品情報検証
+    expect(result.lineItems[0]).toEqual({
+      productName: 'ソフトウェアライセンス',
+      quantity: 5,
+      unitPrice: 10000,
+      amount: 50000,
+      tax: 5000,
     });
 
-    expect(result.current_status).toBe('提案中');
-    expect(result.proposal_content).toBe('提案内容テスト：製品A導入');
-    expect(result.is_saved).toBe(true);
+    expect(result.lineItems[1]).toEqual({
+      productName: 'サポートサービス',
+      quantity: 12,
+      unitPrice: 5000,
+      amount: 60000,
+      tax: 6000,
+    });
+
+    expect(result.lineItems[2]).toEqual({
+      productName: 'カスタマイズ開発',
+      quantity: 1,
+      unitPrice: 500000,
+      amount: 500000,
+      tax: 50000,
+    });
+
+    // 小計検証 (50000 + 60000 + 500000)
+    expect(result.subtotal).toBe(610000);
+
+    // 消費税検証 (5000 + 6000 + 50000)
+    expect(result.totalTax).toBe(61000);
+
+    // 合計金額検証 (610000 + 61000)
+    expect(result.total).toBe(671000);
+
+    // 顧客情報検証
+    expect(result.customerInfo).toEqual(customerInfo);
+
+    // 請求書ヘッダ情報検証
+    expect(result.invoiceNumber).toBe('DEAL-20240415-001');
+    expect(result.invoiceDate).toBe('2024-04-15');
+
+    // フォーマット検証
+    expect(result.format).toBe('unified');
+
+    // レイアウト一貫性検証
+    result.lineItems.forEach((item) => {
+      expect(item.productName).toBeDefined();
+      expect(typeof item.productName).toBe('string');
+      expect(item.quantity).toBeDefined();
+      expect(typeof item.quantity).toBe('number');
+      expect(item.unitPrice).toBeDefined();
+      expect(typeof item.unitPrice).toBe('number');
+      expect(item.amount).toBeDefined();
+      expect(typeof item.amount).toBe('number');
+      expect(item.tax).toBeDefined();
+      expect(typeof item.tax).toBe('number');
+    });
+
+    // 金額計算の正確性（各行の金額 = 数量 × 単価）
+    expect(result.lineItems[0].amount).toBe(5 * 10000);
+    expect(result.lineItems[1].amount).toBe(12 * 5000);
+    expect(result.lineItems[2].amount).toBe(1 * 500000);
+
+    // 税額計算の正確性（各行の税額 = 金額 × 税率）
+    expect(result.lineItems[0].tax).toBe(50000 * 0.1);
+    expect(result.lineItems[1].tax).toBe(60000 * 0.1);
+    expect(result.lineItems[2].tax).toBe(500000 * 0.1);
+
+    // 請求書ステータス確認
+    expect(result.status).toBe('generated');
+
+    // 出力フォーマット検証
+    expect(result.outputFormat).toBe('pdf');
   });
 });

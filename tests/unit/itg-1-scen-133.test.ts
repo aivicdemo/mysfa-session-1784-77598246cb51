@@ -1,140 +1,149 @@
-import { validateMonthlyReportData } from "../../src/logic/it-1-3";
+import { reconcileDealStatusAndInvoiceData } from '../../src/logic/it-1784969823049-1-1-1';
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
+describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
   // SCEN-133
-  test("月次営業成績報告書の売上・請求データ検証 - 報告書の売上金額がシステム元データと1円以上相違する場合、不一致エラーとして検出される", () => {
-    const system_source_revenue = 1000000;
-    const report_revenue_over = 1000001;
-    const report_revenue_under = 999999;
+  test('受注・完了商談の進捗ステータスと請求書発行日・請求金額が正しく紐付いていることを確認できる', () => {
+    const test_deals = [
+      {
+        deal_id: 'DEAL001',
+        customer_id: 'CUST001',
+        customer_name: '株式会社A',
+        status: '受注',
+        amount: 1000000,
+        expected_billing_date: '2024-04-15',
+        created_at: '2024-04-01T09:00:00Z',
+      },
+      {
+        deal_id: 'DEAL002',
+        customer_id: 'CUST002',
+        customer_name: '株式会社B',
+        status: '完了',
+        amount: 2500000,
+        expected_billing_date: '2024-04-20',
+        created_at: '2024-04-05T10:30:00Z',
+      },
+      {
+        deal_id: 'DEAL003',
+        customer_id: 'CUST003',
+        customer_name: '株式会社C',
+        status: '受注',
+        amount: 500000,
+        expected_billing_date: '2024-04-25',
+        created_at: '2024-04-08T14:15:00Z',
+      },
+    ];
 
-    const valid_report_data = {
-      report_id: "RPT-202401-001",
-      reporting_period_start: "2024-01-01",
-      reporting_period_end: "2024-01-31",
-      total_revenue: 1000000,
-      order_count: 5,
-      progress_rate: 0.75,
-      customer_details: [
-        {
-          customer_id: "CUST-001",
-          customer_name: "Test Customer A",
-          deals: [
-            {
-              deal_id: "DEAL-001",
-              status: "受注",
-              amount: 500000,
-            },
-            {
-              deal_id: "DEAL-002",
-              status: "受注",
-              amount: 500000,
-            },
-          ],
-        },
-      ],
-    };
+    const test_invoices = [
+      {
+        invoice_id: 'INV001',
+        deal_id: 'DEAL001',
+        customer_id: 'CUST001',
+        invoice_amount: 1000000,
+        invoice_date: '2024-04-15T00:00:00Z',
+        status: '発行済み',
+      },
+      {
+        invoice_id: 'INV002',
+        deal_id: 'DEAL002',
+        customer_id: 'CUST002',
+        invoice_amount: 2500000,
+        invoice_date: '2024-04-20T00:00:00Z',
+        status: '発行済み',
+      },
+      {
+        invoice_id: 'INV003',
+        deal_id: 'DEAL003',
+        customer_id: 'CUST003',
+        invoice_amount: 500000,
+        invoice_date: '2024-04-25T00:00:00Z',
+        status: '発行済み',
+      },
+    ];
 
-    const mismatched_report_over = {
-      ...valid_report_data,
-      total_revenue: report_revenue_over,
-    };
-
-    const mismatched_report_under = {
-      ...valid_report_data,
-      total_revenue: report_revenue_under,
-    };
-
-    const system_data = {
-      total_revenue: system_source_revenue,
-      order_count: 5,
-      progress_rate: 0.75,
-      deals: [
-        {
-          deal_id: "DEAL-001",
-          status: "受注",
-          amount: 500000,
-        },
-        {
-          deal_id: "DEAL-002",
-          status: "受注",
-          amount: 500000,
-        },
-      ],
-    };
-
-    // 正常な報告書は検証に合格
-    const valid_result = validateMonthlyReportData(
-      valid_report_data,
-      system_data
-    );
-    expect(valid_result.is_valid).toBe(true);
-    expect(valid_result.error_code).toBeUndefined();
-    expect(valid_result.mismatches).toHaveLength(0);
-
-    // 売上金額が1円多い場合、不一致エラーを検出
-    const over_result = validateMonthlyReportData(
-      mismatched_report_over,
-      system_data
-    );
-    expect(over_result.is_valid).toBe(false);
-    expect(over_result.error_code).toBe("DATA_MISMATCH");
-    expect(over_result.mismatches).toHaveLength(1);
-    expect(over_result.mismatches[0]).toEqual({
-      field: "total_revenue",
-      expected_value: system_source_revenue,
-      actual_value: report_revenue_over,
-      difference: 1,
+    const reconciliation_result = reconcileDealStatusAndInvoiceData({
+      deals: test_deals,
+      invoices: test_invoices,
     });
 
-    // 売上金額が1円少ない場合、不一致エラーを検出
-    const under_result = validateMonthlyReportData(
-      mismatched_report_under,
-      system_data
-    );
-    expect(under_result.is_valid).toBe(false);
-    expect(under_result.error_code).toBe("DATA_MISMATCH");
-    expect(under_result.mismatches).toHaveLength(1);
-    expect(under_result.mismatches[0]).toEqual({
-      field: "total_revenue",
-      expected_value: system_source_revenue,
-      actual_value: report_revenue_under,
-      difference: 1,
+    expect(reconciliation_result).toBeDefined();
+    expect(reconciliation_result.reconciled_records).toHaveLength(3);
+
+    expect(reconciliation_result.reconciled_records[0]).toEqual({
+      deal_id: 'DEAL001',
+      customer_id: 'CUST001',
+      customer_name: '株式会社A',
+      deal_status: '受注',
+      deal_amount: 1000000,
+      expected_billing_date: '2024-04-15',
+      invoice_id: 'INV001',
+      invoice_amount: 1000000,
+      invoice_date: '2024-04-15T00:00:00Z',
+      invoice_status: '発行済み',
+      amount_match: true,
+      date_match: true,
+      is_linked: true,
+      discrepancy_flag: false,
+      discrepancy_type: null,
     });
 
-    // エラーメッセージに詳細情報が含まれている
-    expect(over_result.error_message).toMatch(/売上金額/);
-    expect(over_result.error_message).toMatch(/1000000/);
-    expect(over_result.error_message).toMatch(/1000001/);
+    expect(reconciliation_result.reconciled_records[1]).toEqual({
+      deal_id: 'DEAL002',
+      customer_id: 'CUST002',
+      customer_name: '株式会社B',
+      deal_status: '完了',
+      deal_amount: 2500000,
+      expected_billing_date: '2024-04-20',
+      invoice_id: 'INV002',
+      invoice_amount: 2500000,
+      invoice_date: '2024-04-20T00:00:00Z',
+      invoice_status: '発行済み',
+      amount_match: true,
+      date_match: true,
+      is_linked: true,
+      discrepancy_flag: false,
+      discrepancy_type: null,
+    });
 
-    expect(under_result.error_message).toMatch(/売上金額/);
-    expect(under_result.error_message).toMatch(/1000000/);
-    expect(under_result.error_message).toMatch(/999999/);
+    expect(reconciliation_result.reconciled_records[2]).toEqual({
+      deal_id: 'DEAL003',
+      customer_id: 'CUST003',
+      customer_name: '株式会社C',
+      deal_status: '受注',
+      deal_amount: 500000,
+      expected_billing_date: '2024-04-25',
+      invoice_id: 'INV003',
+      invoice_amount: 500000,
+      invoice_date: '2024-04-25T00:00:00Z',
+      invoice_status: '発行済み',
+      amount_match: true,
+      date_match: true,
+      is_linked: true,
+      discrepancy_flag: false,
+      discrepancy_type: null,
+    });
 
-    // 複数フィールドが相違する場合の検出
-    const multi_mismatch_report = {
-      ...valid_report_data,
-      total_revenue: report_revenue_over,
-      order_count: 10,
-    };
+    expect(reconciliation_result.summary).toBeDefined();
+    expect(reconciliation_result.summary.total_records).toBe(3);
+    expect(reconciliation_result.summary.matched_records).toBe(3);
+    expect(reconciliation_result.summary.unmatched_records).toBe(0);
+    expect(reconciliation_result.summary.discrepancy_count).toBe(0);
 
-    const multi_result = validateMonthlyReportData(
-      multi_mismatch_report,
-      system_data
-    );
-    expect(multi_result.is_valid).toBe(false);
-    expect(multi_result.error_code).toBe("DATA_MISMATCH");
-    expect(multi_result.mismatches.length).toBeGreaterThanOrEqual(2);
+    expect(reconciliation_result.discrepancies).toHaveLength(0);
 
-    const revenue_mismatch = multi_result.mismatches.find(
-      (m) => m.field === "total_revenue"
-    );
-    const order_mismatch = multi_result.mismatches.find(
-      (m) => m.field === "order_count"
-    );
+    expect(reconciliation_result.export_data).toBeDefined();
+    expect(reconciliation_result.export_data.csv).toBeDefined();
+    expect(reconciliation_result.export_data.csv).toContain('DEAL001');
+    expect(reconciliation_result.export_data.csv).toContain('DEAL002');
+    expect(reconciliation_result.export_data.csv).toContain('DEAL003');
+    expect(reconciliation_result.export_data.csv).toContain('1000000');
+    expect(reconciliation_result.export_data.csv).toContain('2500000');
+    expect(reconciliation_result.export_data.csv).toContain('500000');
 
-    expect(revenue_mismatch).toBeDefined();
-    expect(revenue_mismatch?.difference).toBe(1);
-    expect(order_mismatch).toBeDefined();
-    expect(order_mismatch?.difference).toBe(5);
+    expect(reconciliation_result.export_data.json).toHaveLength(3);
+    expect(reconciliation_result.export_data.json[0]).toMatchObject({
+      deal_id: 'DEAL001',
+      customer_name: '株式会社A',
+      deal_status: '受注',
+    });
   });
 });

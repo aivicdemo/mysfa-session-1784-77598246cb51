@@ -1,109 +1,33 @@
-import { reconcileDealStatusWithInvoiceDate } from "../../src/logic/it-1784969823049-1-1-1";
+import { validateInvoiceApproval } from "../../src/logic/it-1784969823049-1-1-1";
 
 describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
   // SCEN-215
-  test("請求書発行日が不正な形式の場合、日付比較エラーが検出される", () => {
-    const deal_record = {
-      deal_id: "DEAL-001",
+  test("請求明細が1行のみの請求書が妥当性を満たしていると判定される", () => {
+    const invoice_input = {
       customer_id: "CUST-001",
-      deal_status: "契約済み",
-      deal_amount: 500000,
-      invoice_issued_date: "2024-13-45",
+      customer_name: "テスト顧客株式会社",
+      invoice_date: "2024-01-15",
+      invoice_amount: 100000,
+      invoice_details: [
+        {
+          line_id: 1,
+          product_name: "商品A",
+          quantity: 10,
+          unit_price: 10000,
+          line_amount: 100000,
+        },
+      ],
+      tax_rate: 0.1,
+      total_with_tax: 110000,
     };
 
-    expect(() => reconcileDealStatusWithInvoiceDate(deal_record)).toThrow(
-      /日付形式/
-    );
-  });
+    const validation_result = validateInvoiceApproval(invoice_input);
 
-  test("請求書発行日が不正な形式（スラッシュ区切り不正）の場合、日付比較エラーが検出される", () => {
-    const deal_record = {
-      deal_id: "DEAL-002",
-      customer_id: "CUST-002",
-      deal_status: "契約済み",
-      deal_amount: 300000,
-      invoice_issued_date: "2024/15/60",
-    };
-
-    expect(() => reconcileDealStatusWithInvoiceDate(deal_record)).toThrow(
-      /日付形式/
-    );
-  });
-
-  test("請求書発行日が完全に不正な文字列の場合、日付比較エラーが検出される", () => {
-    const deal_record = {
-      deal_id: "DEAL-003",
-      customer_id: "CUST-003",
-      deal_status: "契約済み",
-      deal_amount: 750000,
-      invoice_issued_date: "invalid-date",
-    };
-
-    expect(() => reconcileDealStatusWithInvoiceDate(deal_record)).toThrow(
-      /日付形式/
-    );
-  });
-
-  test("請求書発行日が正しい形式の場合、照合処理が正常に完了する", () => {
-    const deal_record = {
-      deal_id: "DEAL-004",
-      customer_id: "CUST-004",
-      deal_status: "契約済み",
-      deal_amount: 500000,
-      invoice_issued_date: "2024-01-15",
-    };
-
-    const result = reconcileDealStatusWithInvoiceDate(deal_record);
-
-    expect(result).toHaveProperty("reconciliation_status");
-    expect(result.reconciliation_status).toBe("success");
-  });
-
-  test("商談ステータスが受注で請求日が正常な場合、ズレが検出されない", () => {
-    const deal_record = {
-      deal_id: "DEAL-005",
-      customer_id: "CUST-005",
-      deal_status: "受注",
-      deal_amount: 1000000,
-      expected_invoice_date: "2024-02-10",
-      invoice_issued_date: "2024-02-10",
-    };
-
-    const result = reconcileDealStatusWithInvoiceDate(deal_record);
-
-    expect(result).toHaveProperty("date_mismatch_detected");
-    expect(result.date_mismatch_detected).toBe(false);
-  });
-
-  test("商談ステータスが受注で請求日がズレている場合、ズレが検出される", () => {
-    const deal_record = {
-      deal_id: "DEAL-006",
-      customer_id: "CUST-006",
-      deal_status: "受注",
-      deal_amount: 800000,
-      expected_invoice_date: "2024-03-01",
-      invoice_issued_date: "2024-03-15",
-    };
-
-    const result = reconcileDealStatusWithInvoiceDate(deal_record);
-
-    expect(result).toHaveProperty("date_mismatch_detected");
-    expect(result.date_mismatch_detected).toBe(true);
-    expect(result).toHaveProperty("mismatch_days");
-    expect(result.mismatch_days).toBe(14);
-  });
-
-  test("請求書発行日が空文字列の場合、日付形式エラーが検出される", () => {
-    const deal_record = {
-      deal_id: "DEAL-007",
-      customer_id: "CUST-007",
-      deal_status: "契約済み",
-      deal_amount: 450000,
-      invoice_issued_date: "",
-    };
-
-    expect(() => reconcileDealStatusWithInvoiceDate(deal_record)).toThrow(
-      /日付形式/
-    );
+    expect(validation_result.is_valid).toBe(true);
+    expect(validation_result.validation_errors).toEqual([]);
+    expect(validation_result.approval_status).toBe("approved");
+    expect(validation_result.invoice_line_count).toBe(1);
+    expect(validation_result.calculated_amount).toBe(100000);
+    expect(validation_result.calculated_total_with_tax).toBe(110000);
   });
 });

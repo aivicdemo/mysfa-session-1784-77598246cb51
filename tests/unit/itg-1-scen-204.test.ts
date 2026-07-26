@@ -1,121 +1,83 @@
-import { reconcileDealStatusWithInvoice } from "../../src/logic/it-1784969823049-1-1-1";
+import { extractBillingTargetData } from '../../src/logic/it-1-1';
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
+describe('見積・注文・請求書の自動生成機能', () => {
   // SCEN-204
-  test("商談ステータスと請求書発行日・金額が正常に照合され、ズレが検出される", () => {
-    // 正常系: 商談ステータス（受注100万円）と請求書（100万円）が一致
-    const normalDeal = {
-      dealId: "DEAL-001",
-      status: "受注",
-      amount: 1000000,
-      plannedInvoiceDate: new Date("2024-01-31T00:00:00Z"),
+  test('抽出条件による請求対象データの絞り込み機能 - 抽出条件の金額範囲外のデータは除外される', () => {
+    const mockDealRecords = [
+      {
+        dealId: 'DEAL001',
+        customerId: 'CUST001',
+        amount: 150000,
+        status: 'won',
+        invoiceIssuedDate: '2024-04-15',
+      },
+      {
+        dealId: 'DEAL002',
+        customerId: 'CUST002',
+        amount: 300000,
+        status: 'won',
+        invoiceIssuedDate: '2024-04-16',
+      },
+      {
+        dealId: 'DEAL003',
+        customerId: 'CUST003',
+        amount: 500000,
+        status: 'won',
+        invoiceIssuedDate: '2024-04-17',
+      },
+      {
+        dealId: 'DEAL004',
+        customerId: 'CUST004',
+        amount: 99999,
+        status: 'won',
+        invoiceIssuedDate: '2024-04-18',
+      },
+      {
+        dealId: 'DEAL005',
+        customerId: 'CUST005',
+        amount: 500001,
+        status: 'won',
+        invoiceIssuedDate: '2024-04-19',
+      },
+      {
+        dealId: 'DEAL006',
+        customerId: 'CUST006',
+        amount: 250000,
+        status: 'won',
+        invoiceIssuedDate: '2024-04-20',
+      },
+    ];
+
+    const extractionCondition = {
+      minAmount: 100000,
+      maxAmount: 500000,
+      period: { startDate: '2024-04-01', endDate: '2024-04-30' },
+      customerSegment: 'all',
     };
 
-    const normalInvoice = {
-      invoiceId: "INV-001",
-      amount: 1000000,
-      issuedDate: new Date("2024-01-31T00:00:00Z"),
-    };
+    const result = extractBillingTargetData(mockDealRecords, extractionCondition);
 
-    const normalResult = reconcileDealStatusWithInvoice({
-      deal: normalDeal,
-      invoice: normalInvoice,
-    });
-
-    expect(normalResult.isMatched).toBe(true);
-    expect(normalResult.discrepancy).toBeNull();
-    expect(normalResult.alertNotificationSent).toBe(false);
-    expect(normalResult.logRecorded).toBe(true);
-
-    // 異常系: 商談ステータス（受注100万円）と請求書（90万円）でズレが発生
-    const mismatchedInvoice = {
-      invoiceId: "INV-002",
-      amount: 900000,
-      issuedDate: new Date("2024-01-31T00:00:00Z"),
-    };
-
-    const mismatchResult = reconcileDealStatusWithInvoice({
-      deal: normalDeal,
-      invoice: mismatchedInvoice,
-    });
-
-    expect(mismatchResult.isMatched).toBe(false);
-    expect(mismatchResult.discrepancy).not.toBeNull();
-    expect(mismatchResult.discrepancy?.amountDifference).toBe(100000);
-    expect(mismatchResult.discrepancy?.expectedAmount).toBe(1000000);
-    expect(mismatchResult.discrepancy?.actualAmount).toBe(900000);
-    expect(mismatchResult.discrepancy?.location).toBe("金額");
-    expect(mismatchResult.alertNotificationSent).toBe(true);
-    expect(mismatchResult.alertRecipient).toBe("admin");
-    expect(mismatchResult.logRecorded).toBe(true);
-
-    // 日付ズレテスト: 商談計画日（2024-01-31）と請求日（2024-02-15）でズレが発生
-    const dateMismatchedInvoice = {
-      invoiceId: "INV-003",
-      amount: 1000000,
-      issuedDate: new Date("2024-02-15T00:00:00Z"),
-    };
-
-    const dateMismatchResult = reconcileDealStatusWithInvoice({
-      deal: normalDeal,
-      invoice: dateMismatchedInvoice,
-    });
-
-    expect(dateMismatchResult.isMatched).toBe(false);
-    expect(dateMismatchResult.discrepancy).not.toBeNull();
-    expect(dateMismatchResult.discrepancy?.location).toBe("請求日");
-    expect(dateMismatchResult.discrepancy?.expectedDate).toEqual(
-      new Date("2024-01-31T00:00:00Z")
+    expect(result).toHaveLength(4);
+    expect(result.every((record) => record.amount >= 100000 && record.amount <= 500000)).toBe(
+      true
     );
-    expect(dateMismatchResult.discrepancy?.actualDate).toEqual(
-      new Date("2024-02-15T00:00:00Z")
+    expect(result.map((record) => record.dealId)).toEqual([
+      'DEAL001',
+      'DEAL002',
+      'DEAL003',
+      'DEAL006',
+    ]);
+
+    const dealIdsWithAmountOutOfRange = mockDealRecords
+      .filter((record) => record.amount < 100000 || record.amount > 500000)
+      .map((record) => record.dealId);
+    expect(result.map((record) => record.dealId)).not.toEqual(
+      expect.arrayContaining(dealIdsWithAmountOutOfRange)
     );
-    expect(dateMismatchResult.alertNotificationSent).toBe(true);
-    expect(dateMismatchResult.logRecorded).toBe(true);
 
-    // 未請求案件テスト: 商談ステータス「受注」だが請求書がnull
-    const unissuedInvoiceResult = reconcileDealStatusWithInvoice({
-      deal: normalDeal,
-      invoice: null,
+    result.forEach((record) => {
+      expect(record.amount).toBeGreaterThanOrEqual(100000);
+      expect(record.amount).toBeLessThanOrEqual(500000);
     });
-
-    expect(unissuedInvoiceResult.isMatched).toBe(false);
-    expect(unissuedInvoiceResult.discrepancy).not.toBeNull();
-    expect(unissuedInvoiceResult.discrepancy?.type).toBe("未請求案件");
-    expect(unissuedInvoiceResult.alertNotificationSent).toBe(true);
-    expect(unissuedInvoiceResult.logRecorded).toBe(true);
-
-    // ログ内容の検証
-    expect(normalResult.logEntry).toMatchObject({
-      timestamp: expect.any(Date),
-      dealId: "DEAL-001",
-      reconciliationStatus: "matched",
-      detailedMessage: expect.stringContaining("照合成功"),
-    });
-
-    expect(mismatchResult.logEntry).toMatchObject({
-      timestamp: expect.any(Date),
-      dealId: "DEAL-001",
-      reconciliationStatus: "discrepancy_detected",
-      detailedMessage: expect.stringContaining("金額差分"),
-    });
-
-    // エラーケース: 商談ステータスが「失注」の場合は照合をスキップ
-    const lostDeal = {
-      dealId: "DEAL-002",
-      status: "失注",
-      amount: 500000,
-      plannedInvoiceDate: new Date("2024-01-31T00:00:00Z"),
-    };
-
-    const lostDealResult = reconcileDealStatusWithInvoice({
-      deal: lostDeal,
-      invoice: null,
-    });
-
-    expect(lostDealResult.isMatched).toBe(true);
-    expect(lostDealResult.discrepancy).toBeNull();
-    expect(lostDealResult.alertNotificationSent).toBe(false);
-    expect(lostDealResult.logEntry.reconciliationStatus).toBe("skipped");
   });
 });

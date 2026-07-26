@@ -1,138 +1,204 @@
-import { validateMonthlyReportData } from '../../src/logic/it-1-3';
+import { verifyDocumentAmounts } from "../../src/logic/it-1-2";
 
-describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
-  // SCEN-132
-  test('月次営業成績報告書の売上・請求データ検証 - 報告書の売上金額とシステム元データが完全に一致する場合、検証完了と判定される', () => {
-    // テスト用の営業管理システムからの売上・請求データ
-    const system_sales_data = [
-      {
-        transaction_id: 'TX-2024-01-001',
-        customer_id: 'CUST-001',
-        customer_name: '顧客企業A',
-        deal_status: '受注',
-        deal_amount: 500000,
-        billing_date: '2024-01-15',
-        billing_amount: 500000,
-      },
-      {
-        transaction_id: 'TX-2024-01-002',
-        customer_id: 'CUST-002',
-        customer_name: '顧客企業B',
-        deal_status: '受注',
-        deal_amount: 300000,
-        billing_date: '2024-01-20',
-        billing_amount: 300000,
-      },
-      {
-        transaction_id: 'TX-2024-01-003',
-        customer_id: 'CUST-003',
-        customer_name: '顧客企業C',
-        deal_status: '完了',
-        deal_amount: 200000,
-        billing_date: '2024-01-25',
-        billing_amount: 200000,
-      },
-    ];
+describe("商談ステータスと請求データの紐付け・可視化", () => {
+  // SCEN-132: [edge] 帳票生成検証機能 - 見積・注文・請求書の金額がすべて一致していることを検証できる
+  test("見積・注文・請求書の金額照合により完全一致を確認", () => {
+    const quote_amount = 100000;
+    const quote_tax = 10000;
+    const quote_total = 110000;
 
-    // システムからの売上合計を計算
-    const system_total_sales = system_sales_data.reduce(
-      (sum, record) => sum + record.deal_amount,
-      0
-    );
+    const order_amount = 100000;
+    const order_tax = 10000;
+    const order_total = 110000;
 
-    // システムからの請求合計を計算
-    const system_total_billing = system_sales_data.reduce(
-      (sum, record) => sum + record.billing_amount,
-      0
-    );
+    const invoice_amount = 100000;
+    const invoice_tax = 10000;
+    const invoice_total = 110000;
 
-    // 受注件数
-    const system_received_orders_count = system_sales_data.filter(
-      (record) => record.deal_status === '受注'
-    ).length;
-
-    // 提案数（この例では全件が提案状態から受注に至ったと仮定）
-    const system_proposal_count = system_sales_data.length;
-
-    // 進捗率 = 受注数 ÷ 提案数
-    const system_progress_rate =
-      system_proposal_count > 0
-        ? (system_received_orders_count / system_proposal_count) * 100
-        : 0;
-
-    // 生成された月次営業成績報告書のデータ
-    const generated_report = {
-      report_id: 'RPT-2024-01-001',
-      report_period_start: '2024-01-01',
-      report_period_end: '2024-01-31',
-      total_sales_amount: 1000000,
-      received_orders_count: 2,
-      proposal_count: 3,
-      progress_rate: 66.67,
-      billing_total_amount: 1000000,
-      billing_details: [
-        {
-          customer_id: 'CUST-001',
-          customer_name: '顧客企業A',
-          billing_amount: 500000,
-        },
-        {
-          customer_id: 'CUST-002',
-          customer_name: '顧客企業B',
-          billing_amount: 300000,
-        },
-        {
-          customer_id: 'CUST-003',
-          customer_name: '顧客企業C',
-          billing_amount: 200000,
-        },
-      ],
+    const quote_data = {
+      product_amount: quote_amount,
+      tax_amount: quote_tax,
+      total_amount: quote_total,
     };
 
-    // 検証用入力データ
-    const validation_input = {
-      report_data: generated_report,
-      system_sales_data: system_sales_data,
-      report_period_start: '2024-01-01',
-      report_period_end: '2024-01-31',
+    const order_data = {
+      product_amount: order_amount,
+      tax_amount: order_tax,
+      total_amount: order_total,
     };
 
-    // validateMonthlyReportData 関数を実行
-    const validation_result = validateMonthlyReportData(validation_input);
+    const invoice_data = {
+      product_amount: invoice_amount,
+      tax_amount: invoice_tax,
+      total_amount: invoice_total,
+    };
 
-    // 期待値の計算
-    const expected_total_sales = 1000000; // 500000 + 300000 + 200000
-    const expected_billing_total = 1000000;
-    const expected_received_orders = 2;
-    const expected_proposal_count = 3;
-    const expected_progress_rate = 66.67; // (2 / 3) * 100 = 66.67
+    const verification_result = verifyDocumentAmounts(
+      quote_data,
+      order_data,
+      invoice_data
+    );
 
-    // 検証結果の確認
-    expect(validation_result.validation_status).toBe('完了');
-    expect(validation_result.is_valid).toBe(true);
-    expect(validation_result.total_sales_match).toBe(true);
-    expect(validation_result.report_total_sales).toBe(expected_total_sales);
-    expect(validation_result.system_total_sales).toBe(expected_total_sales);
-    expect(validation_result.billing_amount_match).toBe(true);
-    expect(validation_result.report_total_billing).toBe(expected_billing_total);
-    expect(validation_result.system_total_billing).toBe(expected_billing_total);
-    expect(validation_result.received_orders_match).toBe(true);
-    expect(validation_result.report_received_orders).toBe(expected_received_orders);
-    expect(validation_result.system_received_orders).toBe(expected_received_orders);
-    expect(validation_result.proposal_count_match).toBe(true);
-    expect(validation_result.report_proposal_count).toBe(expected_proposal_count);
-    expect(validation_result.system_proposal_count).toBe(expected_proposal_count);
-    expect(validation_result.progress_rate_match).toBe(true);
-    expect(validation_result.report_progress_rate).toBeCloseTo(
-      expected_progress_rate,
-      2
+    expect(verification_result.is_all_matched).toBe(true);
+    expect(verification_result.status).toBe("完全一致");
+    expect(verification_result.product_amount_match).toBe(true);
+    expect(verification_result.tax_amount_match).toBe(true);
+    expect(verification_result.total_amount_match).toBe(true);
+    expect(verification_result.errors).toEqual([]);
+    expect(verification_result.discrepancies).toEqual([]);
+  });
+
+  // 追加テスト：金額不一致を検出
+  test("見積・注文・請求書の金額照合により不一致を検出", () => {
+    const quote_data = {
+      product_amount: 100000,
+      tax_amount: 10000,
+      total_amount: 110000,
+    };
+
+    const order_data = {
+      product_amount: 100000,
+      tax_amount: 10000,
+      total_amount: 110000,
+    };
+
+    const invoice_data = {
+      product_amount: 100000,
+      tax_amount: 11000,
+      total_amount: 111000,
+    };
+
+    const verification_result = verifyDocumentAmounts(
+      quote_data,
+      order_data,
+      invoice_data
     );
-    expect(validation_result.system_progress_rate).toBeCloseTo(
-      expected_progress_rate,
-      2
+
+    expect(verification_result.is_all_matched).toBe(false);
+    expect(verification_result.status).toBe("不一致");
+    expect(verification_result.tax_amount_match).toBe(false);
+    expect(verification_result.total_amount_match).toBe(false);
+    expect(verification_result.discrepancies.length).toBeGreaterThan(0);
+  });
+
+  // 追加テスト：注文書と請求書のみ不一致
+  test("見積は一致し注文・請求書に不一致を検出", () => {
+    const quote_data = {
+      product_amount: 100000,
+      tax_amount: 10000,
+      total_amount: 110000,
+    };
+
+    const order_data = {
+      product_amount: 95000,
+      tax_amount: 9500,
+      total_amount: 104500,
+    };
+
+    const invoice_data = {
+      product_amount: 100000,
+      tax_amount: 10000,
+      total_amount: 110000,
+    };
+
+    const verification_result = verifyDocumentAmounts(
+      quote_data,
+      order_data,
+      invoice_data
     );
-    expect(validation_result.discrepancy_items).toEqual([]);
-    expect(validation_result.validation_timestamp).toBeDefined();
-    expect(validation_result.approved_for_submission).toBe(true);
+
+    expect(verification_result.is_all_matched).toBe(false);
+    expect(verification_result.product_amount_match).toBe(false);
+    expect(verification_result.tax_amount_match).toBe(false);
+    expect(verification_result.total_amount_match).toBe(false);
+  });
+
+  // 追加テスト：必須項目不足時のエラー検出
+  test("見積書の必須項目不足でエラーを検出", () => {
+    const quote_data = {
+      product_amount: 100000,
+      tax_amount: 10000,
+      total_amount: undefined,
+    };
+
+    const order_data = {
+      product_amount: 100000,
+      tax_amount: 10000,
+      total_amount: 110000,
+    };
+
+    const invoice_data = {
+      product_amount: 100000,
+      tax_amount: 10000,
+      total_amount: 110000,
+    };
+
+    expect(() =>
+      verifyDocumentAmounts(quote_data as any, order_data, invoice_data)
+    ).toThrow(/金額/);
+  });
+
+  // 追加テスト：全帳票の金額が0の場合
+  test("全帳票の金額が0円で完全一致を確認", () => {
+    const quote_data = {
+      product_amount: 0,
+      tax_amount: 0,
+      total_amount: 0,
+    };
+
+    const order_data = {
+      product_amount: 0,
+      tax_amount: 0,
+      total_amount: 0,
+    };
+
+    const invoice_data = {
+      product_amount: 0,
+      tax_amount: 0,
+      total_amount: 0,
+    };
+
+    const verification_result = verifyDocumentAmounts(
+      quote_data,
+      order_data,
+      invoice_data
+    );
+
+    expect(verification_result.is_all_matched).toBe(true);
+    expect(verification_result.status).toBe("完全一致");
+    expect(verification_result.product_amount_match).toBe(true);
+  });
+
+  // 追加テスト：大規模金額の検証
+  test("大規模金額（複数商品）で完全一致を確認", () => {
+    const quote_data = {
+      product_amount: 5000000,
+      tax_amount: 500000,
+      total_amount: 5500000,
+    };
+
+    const order_data = {
+      product_amount: 5000000,
+      tax_amount: 500000,
+      total_amount: 5500000,
+    };
+
+    const invoice_data = {
+      product_amount: 5000000,
+      tax_amount: 500000,
+      total_amount: 5500000,
+    };
+
+    const verification_result = verifyDocumentAmounts(
+      quote_data,
+      order_data,
+      invoice_data
+    );
+
+    expect(verification_result.is_all_matched).toBe(true);
+    expect(verification_result.status).toBe("完全一致");
+    expect(verification_result.product_amount_match).toBe(true);
+    expect(verification_result.tax_amount_match).toBe(true);
+    expect(verification_result.total_amount_match).toBe(true);
   });
 });

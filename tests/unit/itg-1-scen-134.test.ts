@@ -1,68 +1,36 @@
-import { validateMonthlyReportDataConsistency } from "../../src/logic/it-1-3";
+import { detectBillingMismatch } from '../../src/logic/it-1784969823049-1-1-1';
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
-  // SCEN-134
-  test("月次営業成績報告書の売上・請求データ検証 - 報告書の件数とシステム元データの件数が一致しない場合、差分が特定され差し戻し対象となる", () => {
-    // 月次営業成績報告書（営業担当者が手動入力したデータ）
-    const monthlyReport = {
-      report_id: "RPT-2024-04-001",
-      reporting_period: "2024-04",
-      sales_count: 10,
-      sales_amount: 1500000,
-      invoice_count: 5,
-      invoice_amount: 1200000,
-      status: "pending_validation",
-      submitted_at: "2024-05-01T10:00:00Z",
+describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
+  // SCEN-134: 売上計上予定日と実際の請求日が異なる場合に未請求案件として検出される
+  test('売上計上予定日と実請求日のズレが検出される', () => {
+    // Arrange: テストデータの準備
+    const dealRecord = {
+      dealId: 'DEAL-001',
+      customerId: 'CUST-001',
+      customerName: '株式会社テスト商社',
+      dealStatus: '成約済み',
+      dealAmount: 1500000,
+      plannedBillingDate: new Date('2024-01-15T00:00:00Z'),
+      actualBillingDate: new Date('2024-01-20T00:00:00Z'),
+      invoiceNumber: 'INV-20240120-001',
+      invoiceAmount: 1500000,
     };
 
-    // システム元データ（営業管理システムから抽出した実際のデータ）
-    const systemMasterData = {
-      total_sales_records: 15,
-      total_sales_amount: 1800000,
-      total_invoice_records: 8,
-      total_invoice_amount: 1350000,
-    };
+    // Act: ズレ検出機能を実行
+    const mismatchResult = detectBillingMismatch(dealRecord);
 
-    // 検証結果
-    const validationResult = validateMonthlyReportDataConsistency(
-      monthlyReport,
-      systemMasterData
-    );
-
-    // 売上件数の差分: 15 - 10 = 5
-    // 請求件数の差分: 8 - 5 = 3
-    // いずれも差分がプラスなので、報告書が過少報告していることを意味する
-
-    expect(validationResult.is_consistent).toBe(false);
-    expect(validationResult.status).toBe("reject_and_return");
-
-    expect(validationResult.discrepancies).toEqual([
-      {
-        field: "sales_count",
-        report_value: 10,
-        system_value: 15,
-        difference: 5,
-        discrepancy_type: "shortage_in_report",
-      },
-      {
-        field: "invoice_count",
-        report_value: 5,
-        system_value: 8,
-        difference: 3,
-        discrepancy_type: "shortage_in_report",
-      },
-    ]);
-
-    expect(validationResult.summary).toBe(
-      "売上件数の差分：+5件、請求件数の差分：+3件"
-    );
-
-    // 差し戻し対象リストに登録される
-    expect(validationResult.rejection_reason).toBe(
-      "報告書の売上・請求件数がシステム元データと一致しません。確認後、修正版を再提出してください。"
-    );
-
-    expect(validationResult.requires_resubmission).toBe(true);
-    expect(validationResult.can_be_listed_in_rejection_queue).toBe(true);
+    // Assert: ズレが正しく検出されることを確認
+    expect(mismatchResult).toBeDefined();
+    expect(mismatchResult.hasMismatch).toBe(true);
+    expect(mismatchResult.mismatchDays).toBe(5);
+    expect(mismatchResult.mismatchType).toBe('未請求案件');
+    expect(mismatchResult.dealId).toBe('DEAL-001');
+    expect(mismatchResult.customerName).toBe('株式会社テスト商社');
+    expect(mismatchResult.plannedDate).toEqual(new Date('2024-01-15T00:00:00Z'));
+    expect(mismatchResult.actualDate).toEqual(new Date('2024-01-20T00:00:00Z'));
+    expect(mismatchResult.delayDescription).toBe('5日の遅延');
+    expect(mismatchResult.severityLevel).toBe('error');
+    expect(mismatchResult.invoiceNumber).toBe('INV-20240120-001');
+    expect(mismatchResult.dealStatus).toBe('成約済み');
   });
 });

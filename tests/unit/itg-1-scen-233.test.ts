@@ -1,20 +1,36 @@
-import { validateDealStatusTransition } from '../../src/logic/it-1784969823049-2-1-1';
+import { calculateROI } from "../../src/logic/it-1-3";
 
-describe('商談レコードの進捗ステータスと提案内容の入力・保存機能', () => {
+describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
   // SCEN-233
-  test('月次決算時の商談ステータスと請求データ照合において業務ルール違反の遷移が拒否される', () => {
-    const current_deal_status = 'completed';
-    const target_deal_status = 'order_confirmed';
-    const invoice_amount = 50000;
-    const deal_amount = 100000;
+  test("ライセンス費用対効果分析機能 - 自社システム運用コストがSalesforceライセンス費用を上回る場合、負のROIが正しく計算される", () => {
+    const salesforceMonthlyCost = 300000; // 月額30万円
+    const customSystemMonthlyCost = 500000; // 月額50万円
+    const analysisMonths = 12;
 
-    expect(() =>
-      validateDealStatusTransition({
-        currentStatus: current_deal_status,
-        targetStatus: target_deal_status,
-        invoiceAmount: invoice_amount,
-        dealAmount: deal_amount,
-      })
-    ).toThrow(/ステータス遷移/);
+    const result = calculateROI({
+      salesforceLicenseCost: salesforceMonthlyCost,
+      customSystemOperationCost: customSystemMonthlyCost,
+      analysisPeriodMonths: analysisMonths,
+    });
+
+    // ROI = (Salesforceライセンス費用 - 自社システム運用コスト) / 自社システム運用コスト × 100
+    // ROI = (300000 - 500000) / 500000 × 100 = -200000 / 500000 × 100 = -40
+    const expectedROI = -40;
+
+    expect(result.roiPercentage).toBe(expectedROI);
+    expect(result.isNegativeROI).toBe(true);
+    expect(result.warningMessage).toMatch(/負のROI|削減効果がない|コスト超過/);
+
+    // 年間コスト比較の検証
+    const salesforceAnnualCost = salesforceMonthlyCost * analysisMonths; // 360万円
+    const customSystemAnnualCost = customSystemMonthlyCost * analysisMonths; // 600万円
+
+    expect(result.salesforceTotalCost).toBe(salesforceAnnualCost);
+    expect(result.customSystemTotalCost).toBe(customSystemAnnualCost);
+
+    // コスト差分が負（自社システムが高い）ことを確認
+    const costDifference = salesforceAnnualCost - customSystemAnnualCost; // -240万円
+    expect(costDifference).toBe(-2400000);
+    expect(result.costDifference).toBe(costDifference);
   });
 });

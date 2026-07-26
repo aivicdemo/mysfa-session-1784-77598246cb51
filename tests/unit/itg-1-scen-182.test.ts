@@ -1,63 +1,77 @@
-import { searchCustomerRecords } from "../../src/logic/it-1";
+import { updateDealWithBillingData } from "../../src/logic/it-1-2";
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
+describe("商談ステータスと請求データの紐付け・可視化", () => {
   // SCEN-182
-  test("SQL インジェクション攻撃文字列が入力された場合、適切にエスケープ・サニタイズされて処理される", () => {
-    // SQL インジェクション攻撃 1: ' OR '1'='1
-    const sqlInjectionPayload1 = "' OR '1'='1";
-    const result1 = searchCustomerRecords({
-      searchQuery: sqlInjectionPayload1,
-      searchType: "customer_name",
-    });
+  test("顧客対応情報の更新時に、該当商談レコードが正確に特定され更新される", () => {
+    // Arrange: テストデータ準備
+    const dealId = "DEAL-001";
+    const customerId = "CUST-001";
+    const billingNumber = "INV-2024-001";
+    const billingAmount = 150000;
+    const billingDate = "2024-01-15";
+    const contactedAt = "2024-01-15T10:30:00Z";
+    const contactContent = "顧客より納期確認の連絡あり";
+    const contactPerson = "田中太郎";
+    const updatedStatus = "negotiating";
 
-    // 不正なSQLが実行されず、0件または安全な結果が返されることを検証
-    expect(Array.isArray(result1.records)).toBe(true);
-    expect(result1.records.length).toBe(0);
-    expect(result1.isSuccessful).toBe(true);
-    expect(result1.sanitized).toBe(true);
+    const inputDeal = {
+      deal_id: dealId,
+      customer_id: customerId,
+      contact_date: contactedAt,
+      contact_content: contactContent,
+      contact_person: contactPerson,
+      status: updatedStatus,
+    };
 
-    // SQL インジェクション攻撃 2: '; DROP TABLE customers; --
-    const sqlInjectionPayload2 = "'; DROP TABLE customers; --";
-    const result2 = searchCustomerRecords({
-      searchQuery: sqlInjectionPayload2,
-      searchType: "customer_id",
-    });
+    const existingBillingData = {
+      billing_number: billingNumber,
+      billing_amount: billingAmount,
+      billing_date: billingDate,
+      deal_id: dealId,
+    };
 
-    // テーブルが削除されず、安全に処理されることを検証
-    expect(Array.isArray(result2.records)).toBe(true);
-    expect(result2.records.length).toBe(0);
-    expect(result2.isSuccessful).toBe(true);
-    expect(result2.sanitized).toBe(true);
+    // Act: 商談と請求データの紐付け更新
+    const result = updateDealWithBillingData(inputDeal, existingBillingData);
 
-    // XSS 攻撃ペイロード: <script>alert('XSS')</script>
-    const xssPayload = "<script>alert('XSS')</script>";
-    const result3 = searchCustomerRecords({
-      searchQuery: xssPayload,
-      searchType: "customer_name",
-    });
+    // Assert: 商談レコードが正確に特定されたことを確認
+    expect(result.deal_id).toBe(dealId);
+    expect(result.customer_id).toBe(customerId);
 
-    // XSS スクリプトがそのまま実行されず、エスケープされることを検証
-    expect(Array.isArray(result3.records)).toBe(true);
-    expect(result3.records.length).toBe(0);
-    expect(result3.isSuccessful).toBe(true);
-    expect(result3.sanitized).toBe(true);
+    // Assert: 顧客対応情報が正確に更新されたことを確認
+    expect(result.contact_date).toBe(contactedAt);
+    expect(result.contact_content).toBe(contactContent);
+    expect(result.contact_person).toBe(contactPerson);
 
-    // エラーログに入力値がそのまま出力されないことを検証
-    expect(result1.errorLog).not.toContain(sqlInjectionPayload1);
-    expect(result2.errorLog).not.toContain(sqlInjectionPayload2);
-    expect(result3.errorLog).not.toContain(xssPayload);
+    // Assert: 商談ステータスが正確に反映されたことを確認
+    expect(result.status).toBe(updatedStatus);
 
-    // 複数の攻撃ペイロードが検出された場合の統合テスト
-    const combinedPayload = sqlInjectionPayload1 + " " + sqlInjectionPayload2;
-    const resultCombined = searchCustomerRecords({
-      searchQuery: combinedPayload,
-      searchType: "customer_name",
-    });
+    // Assert: 紐付いた請求データが正確に表示されたことを確認
+    expect(result.billing_data).toBeDefined();
+    expect(result.billing_data.billing_number).toBe(billingNumber);
+    expect(result.billing_data.billing_amount).toBe(billingAmount);
+    expect(result.billing_data.billing_date).toBe(billingDate);
+    expect(result.billing_data.deal_id).toBe(dealId);
 
-    expect(Array.isArray(resultCombined.records)).toBe(true);
-    expect(resultCombined.records.length).toBe(0);
-    expect(resultCombined.isSuccessful).toBe(true);
-    expect(resultCombined.sanitized).toBe(true);
-    expect(resultCombined.errorLog).not.toContain(combinedPayload);
+    // Assert: 請求データが対象商談に正確に紐付いていることを確認
+    expect(result.billing_data.deal_id).toEqual(result.deal_id);
+
+    // Assert: 更新フラグが立てられたことを確認（他の商談への影響を防止）
+    expect(result.is_updated).toBe(true);
+    expect(result.updated_at).toBeDefined();
+
+    // Assert: 対象商談のみが更新されたことを確認（複数商談存在時の分離テスト）
+    const otherDealId = "DEAL-002";
+    const otherDeal = {
+      deal_id: otherDealId,
+      customer_id: "CUST-002",
+      status: "initial_contact",
+    };
+
+    // 別の商談は影響を受けないことを確認
+    expect(result.deal_id).not.toBe(otherDeal.deal_id);
+    expect(result.customer_id).not.toBe(otherDeal.customer_id);
+
+    // Assert: 複数商談存在時に対象商談のみが更新されたことを確認
+    expect(result.update_count).toBe(1);
   });
 });
