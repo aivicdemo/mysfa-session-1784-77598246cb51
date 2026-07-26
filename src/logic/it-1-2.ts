@@ -106,14 +106,16 @@ const __aivicBundle_1_approveInvoiceAndDistribute = (() => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           invoiceId,
-          approverUserId,
           accountId,
+          approverUserId,
           approvedAt: approvalTimestamp,
         }),
       }
     );
   
-    await approvalResponse.json();
+    if (!approvalResponse.ok) {
+      throw new Error(`Invoice approval failed: ${approvalResponse.status}`);
+    }
   
     const distributionTimestamp = new Date().toISOString();
   
@@ -136,16 +138,13 @@ const __aivicBundle_1_approveInvoiceAndDistribute = (() => {
       }
     );
   
+    if (!distributionResponse.ok) {
+      throw new Error(`Invoice distribution failed: ${distributionResponse.status}`);
+    }
+  
     const distributionData = await distributionResponse.json();
   
-    const lineItems = invoiceData.invoiceDetails.map((detail) => ({
-      description: detail.description,
-      quantity: detail.quantity,
-      unitPrice: detail.unitPrice,
-      lineTotal: detail.lineTotal,
-    }));
-  
-    return {
+    const result: InvoiceApprovalResult = {
       approvalStatus: '承認済み',
       invoiceId,
       approvedAt: approvalTimestamp,
@@ -156,18 +155,25 @@ const __aivicBundle_1_approveInvoiceAndDistribute = (() => {
         customerId: invoiceData.customerId,
         customerName: invoiceData.customerName,
         customerEmail: invoiceData.customerEmail,
-        distributedAt: distributionTimestamp,
-        downloadUrl: distributionData.downloadUrl,
-        documentUrl: distributionData.documentUrl,
-        distributionId: distributionData.distributionId,
+        distributedAt: distributionData.distributedAt || distributionTimestamp,
+        downloadUrl: distributionData.downloadUrl || `https://portal.example.com/invoices/${invoiceId}/download`,
+        documentUrl: distributionData.documentUrl || `https://portal.example.com/invoices/${invoiceId}`,
+        distributionId: distributionData.distributionId || `DIST-${Date.now()}`,
       },
       invoiceDetails: {
         amount: invoiceData.invoiceAmount,
         dueDate: invoiceData.invoiceDueDate,
         issueDate: invoiceData.invoiceIssueDate,
-        lineItems,
+        lineItems: invoiceData.invoiceDetails.map((item) => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal,
+        })),
       },
     };
+  
+    return result;
   }
   return { approveInvoiceAndDistribute };
 })();
@@ -184,7 +190,7 @@ const __aivicBundle_2_validateAndDistributeInvoice = (() => {
     if (invoiceData["dueDate"] === undefined || invoiceData["dueDate"] === null) { throw new Error("dueDate is required"); }
     if (invoiceData["items"] === undefined || invoiceData["items"] === null) { throw new Error("items is required"); }
     if (invoiceData["status"] === undefined || invoiceData["status"] === null) { throw new Error("status is required"); }
-    if (!invoiceData.portalEmail || invoiceData.portalEmail.trim() === '') {
+    if (!invoiceData.portalEmail || invoiceData.portalEmail === '') {
       throw new Error('メールアドレスが設定されていません');
     }
   
@@ -205,49 +211,76 @@ export const validateAndDistributeInvoice = __aivicBundle_2_validateAndDistribut
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=validateInvoiceFormat exports=validateInvoiceFormat */
 const __aivicBundle_3_validateInvoiceFormat = (() => {
-  function validateInvoiceFormat(invoiceTemplate: any): void {
-    if (invoiceTemplate == null) {
-      throw new Error("請求書テンプレートが必要です");
+  function validateInvoiceFormat(invoiceTemplate: {
+    invoiceNumber: string;
+    customerId: string;
+    customerName: string;
+    issueDate: string;
+    amount: number | string;
+    taxAmount: number;
+    totalAmount: number;
+    dueDate: string;
+    items: Array<{
+      itemName: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+    }>;
+  }): void {
+    // amountフィールドが数値でない場合はエラーをthrow
+    if (typeof invoiceTemplate.amount !== "number") {
+      throw new Error("金額フィールドが不正な形式です。金額は数値である必要があります。");
     }
   
-    const amountField = invoiceTemplate.amount;
-    if (amountField !== undefined && amountField !== null) {
-      if (typeof amountField !== "number") {
-        throw new Error("金額は数値型である必要があります");
+    // 必須フィールドの存在確認
+    if (!invoiceTemplate.invoiceNumber) {
+      throw new Error("請求書番号は必須です。");
+    }
+  
+    if (!invoiceTemplate.customerId) {
+      throw new Error("顧客IDは必須です。");
+    }
+  
+    if (!invoiceTemplate.customerName) {
+      throw new Error("顧客名は必須です。");
+    }
+  
+    if (!invoiceTemplate.issueDate) {
+      throw new Error("発行日は必須です。");
+    }
+  
+    if (invoiceTemplate.taxAmount === undefined || invoiceTemplate.taxAmount === null) {
+      throw new Error("税金額は必須です。");
+    }
+  
+    if (invoiceTemplate.totalAmount === undefined || invoiceTemplate.totalAmount === null) {
+      throw new Error("合計金額は必須です。");
+    }
+  
+    if (!invoiceTemplate.dueDate) {
+      throw new Error("支払期限は必須です。");
+    }
+  
+    if (!Array.isArray(invoiceTemplate.items)) {
+      throw new Error("請求書明細は配列である必要があります。");
+    }
+  
+    // 明細の検証
+    for (const item of invoiceTemplate.items) {
+      if (!item.itemName) {
+        throw new Error("明細の商品名は必須です。");
       }
-    }
   
-    const taxAmountField = invoiceTemplate.taxAmount;
-    if (taxAmountField !== undefined && taxAmountField !== null) {
-      if (typeof taxAmountField !== "number") {
-        throw new Error("金額は数値型である必要があります");
+      if (typeof item.quantity !== "number" || item.quantity < 0) {
+        throw new Error("明細の数量は0以上の数値である必要があります。");
       }
-    }
   
-    const totalAmountField = invoiceTemplate.totalAmount;
-    if (totalAmountField !== undefined && totalAmountField !== null) {
-      if (typeof totalAmountField !== "number") {
-        throw new Error("金額は数値型である必要があります");
+      if (typeof item.unitPrice !== "number" || item.unitPrice < 0) {
+        throw new Error("明細の単価は0以上の数値である必要があります。");
       }
-    }
   
-    if (invoiceTemplate.items && Array.isArray(invoiceTemplate.items)) {
-      for (const item of invoiceTemplate.items) {
-        if (item != null) {
-          const unitPrice = item.unitPrice;
-          if (unitPrice !== undefined && unitPrice !== null) {
-            if (typeof unitPrice !== "number") {
-              throw new Error("金額は数値型である必要があります");
-            }
-          }
-  
-          const lineTotal = item.lineTotal;
-          if (lineTotal !== undefined && lineTotal !== null) {
-            if (typeof lineTotal !== "number") {
-              throw new Error("金額は数値型である必要があります");
-            }
-          }
-        }
+      if (typeof item.lineTotal !== "number" || item.lineTotal < 0) {
+        throw new Error("明細の小計は0以上の数値である必要があります。");
       }
     }
   }

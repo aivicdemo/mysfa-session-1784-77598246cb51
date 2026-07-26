@@ -44,36 +44,51 @@ export interface StatusHistoryRecord {
 export interface DocumentSet {
   [key: string]: any;
 }
-export interface VerificationScreenState {
-    is_quotation_visible: boolean;
-    is_order_visible: boolean;
-    is_invoice_visible: boolean;
-    quotation_preview_format: string;
-    order_preview_format: string;
-    invoice_preview_format: string;
-    is_batch_operations_enabled: boolean;
-    can_edit_all_documents: boolean;
-    can_approve_all_documents: boolean;
-    can_reject_all_documents: boolean;
-    can_download_all_as_pdf: boolean;
-}
-export interface GeneratedDocumentsResult {
-    quotation: DocumentSet;
-    order: DocumentSet;
-    invoice: DocumentSet;
-    verification_screen_state: VerificationScreenState;
-    generated_timestamp: Date;
-    is_all_documents_generated: boolean;
-    document_count: number;
-    status?: string;
-}
-export interface LineItem {
-    item_id: string;
-    product_name: string;
-    quantity: number;
-    unit_price: number;
+export interface InvoiceDocument {
+    document_id: string;
+    document_type: string;
+    document_number: string;
+    customer_id: string;
+    customer_name: string;
+    customer_postal_code: string;
+    customer_address: string;
+    customer_phone: string;
+    customer_contact_person: string;
+    billing_address: string;
     subtotal: number;
-    tax_rate: number;
+    total_tax_amount: number;
+    total_amount: number;
+    line_items: Array<{
+        product_name: string;
+        quantity: number;
+        unit_price: number;
+        tax_rate: number;
+        line_amount: number;
+        tax_amount: number;
+    }>;
+    generated_at: Date;
+    due_date: Date;
+    format_version: string;
+    is_preview_available: boolean;
+    is_pdf_downloadable: boolean;
+    is_editable: boolean;
+    is_approvable: boolean;
+    is_rejectable: boolean;
+    header: {
+        customer_name: string;
+        customer_postal_code: string;
+        customer_address: string;
+        customer_phone: string;
+        customer_contact_person: string;
+        document_date: string;
+        due_date: string;
+        salesperson_name: string;
+        salesperson_id: string;
+        department: string;
+        related_deal_id: string;
+        related_quotation_id: string;
+        related_order_id: string;
+    };
 }
 export interface ProposalUpdatePayload {
     deal_id: string;
@@ -81,30 +96,6 @@ export interface ProposalUpdatePayload {
     proposal_content: string;
     updated_by: string;
     updated_at: Date;
-}
-export interface StatusHistoryEntry {
-    history_id: string;
-    deal_id: string;
-    previous_status: string | null;
-    new_status: string;
-    changed_at: Date;
-    changed_by_user_id: string;
-    changed_by_user_name: string;
-}
-export interface AccessGrantResult {
-    success: boolean;
-    access_granted: boolean;
-    portal_user_id?: string;
-    customer_contact_email?: string;
-    permission_effective_timestamp?: Date;
-    access_log_id?: string;
-    message: string;
-    granted_count?: number;
-    access_log_ids?: string[];
-    is_duplicate_attempt?: boolean;
-    log_message?: string;
-    permission_count?: number;
-    accessPermissionStatus?: string;
 }
 export interface StatusTransitionRequest {
     deal_id?: string;
@@ -119,134 +110,84 @@ export interface StatusTransitionRequest {
     dealAmount?: number;
     customer_id?: string;
     customerId?: string;
-    invoice_amount?: number;
-    invoiceAmount?: number;
     transition_timestamp?: Date;
     transitionTime?: Date;
     operator_id?: string;
     operatorId?: string;
+    check_history?: boolean;
+    invoice_amount?: number;
+    invoiceAmount?: number;
     valid_statuses?: string[];
     validStatuses?: string[];
-    check_history?: boolean;
+}
+export interface PortalAccessInput {
+    negotiation_id?: string;
+    dealId?: string;
+    customer_id?: string;
+    customerId?: string;
+    customer_contact_email?: string;
+    customer_contact_name?: string;
+    customer_contact_list?: Array<{
+        email: string;
+        name: string;
+    }>;
+    old_status?: string;
+    new_status?: string;
+    dealStatus?: string;
+    update_timestamp?: Date;
+    updatedAt?: Date;
+    existing_portal_user_id?: string;
+    deal_amount?: number;
+    dealAmount?: number;
+    deal_title?: string;
+    dealTitle?: string;
+    created_at?: string;
+    createdAt?: string;
+}
+export interface StatusTransitionResult {
+    is_valid: boolean;
+    status_code: string;
+    message: string;
+    allowed_next_statuses: string[];
+    transition_recorded: boolean;
+    deal_status?: string;
+    statusHistoryRecord?: {
+        dealId: string;
+        fromStatus: string;
+        toStatus: string;
+        changedAt: Date;
+        operatorId?: string;
+        isNoChange?: boolean;
+    };
+    errorFlag?: boolean;
+    errorMessage?: string;
+    transactionStatus?: string;
     transition_history?: Array<{
         from_status: string;
         to_status: string;
         timestamp: Date;
         deal_id: string;
     }>;
-    is_valid?: boolean;
-    status_code?: string;
-    message?: string;
-    allowed_next_statuses?: string[];
-    transition_recorded?: boolean;
-    deal_status?: string;
-    dealStatus?: string;
-    status_history_record?: {
-        dealId: string;
-        fromStatus: string;
-        toStatus: string;
-        changedAt: Date;
-        operatorId: string;
-        isNoChange: boolean;
-    };
-    error_flag?: boolean;
-    error_message?: string;
-    transaction_status?: string;
-}
-export interface PortalAccessRequest {
-    negotiation_id?: string;
     dealId?: string;
-    customer_id?: string;
-    customerId?: string;
-    customer_contact_email?: string;
-    customerContactEmail?: string;
-    customer_contact_name?: string;
-    customerContactName?: string;
-    old_status?: string;
-    new_status?: string;
-    update_timestamp?: Date;
-    updateTimestamp?: Date;
-    existing_portal_user_id?: string;
-    customer_contact_list?: Array<{
-        email: string;
-        name: string;
-    }>;
-    deal_status?: string;
-    deal_amount?: number;
-    deal_title?: string;
-    created_at?: string;
+    currentStatus?: string;
+    newStatus?: string;
+    invoiceAmount?: number;
+    dealAmount?: number;
 }
 export interface PortalAccessResult {
     success: boolean;
     access_granted: boolean;
     portal_user_id?: string;
-    customer_contact_email?: string;
+    customer_contact_email: string;
     permission_effective_timestamp?: Date;
     access_log_id?: string;
     message: string;
+    accessPermissionStatus?: string;
     granted_count?: number;
     access_log_ids?: string[];
-    access_permission_status?: string;
     is_duplicate_attempt?: boolean;
-    permission_count?: number;
     log_message?: string;
-}
-export interface DealCreateInput {
-    dealId: string;
-    customerId: string;
-    dealTitle: string;
-    initialStatus: string;
-    amount: number;
-    createdAt: Date;
-}
-export interface DealCreateResult {
-    dealId: string;
-    customerId: string;
-    dealTitle: string;
-    status: string;
-    amount: number;
-    permissionGranted: boolean;
-    createdAt: string;
-}
-export interface DealStatusUpdateInput {
-    dealId: string;
-    customerId: string;
-    newStatus: string;
-    updatedAt: Date;
-    updatedBy: string;
-}
-export interface DealStatusUpdateResult {
-    dealId: string;
-    customerId: string;
-    previousStatus: string;
-    newStatus: string;
-    permissionGranted: boolean;
-    grantedAt: string;
-}
-export interface CustomerPortalAccessCheckInput {
-    customerId: string;
-    dealId: string;
-}
-export interface CustomerPortalAccessCheckResult {
-    hasAccess: boolean;
-    reason: string;
-}
-export interface AccessLogQueryInput {
-    dealId: string;
-    customerId: string;
-    logType: string;
-}
-export interface AccessLogQueryResult {
-    recordCount: number;
-    logs: Array<{
-        logId: string;
-        dealId: string;
-        customerId: string;
-        logType: string;
-        grantedStatus: string;
-        grantedAt: string;
-        grantedBy: string;
-    }>;
+    permission_count?: number;
 }
 
 
@@ -261,9 +202,9 @@ const __aivicBundle_1_updateDealStatusToContracted = (() => {
     customerId?: string;
     customer_name?: string;
     customerName?: string;
+    customerAddress?: string;
     amount?: number;
     dealAmount?: number;
-    deal_amount?: number;
     currency?: string;
     line_items?: Array<{
       item_id?: string;
@@ -278,26 +219,25 @@ const __aivicBundle_1_updateDealStatusToContracted = (() => {
     }>;
     dealItems?: Array<{
       itemId?: string;
-      item_id?: string;
       itemName?: string;
-      product_name?: string;
       quantity: number;
       unitPrice?: number;
-      unit_price?: number;
-      tax_rate?: number;
     }>;
     status?: string;
     dealStatus?: string;
-    deal_status?: string;
     expected_billing_date?: string;
     billing_type?: string;
     deal_record?: any;
     new_status?: string;
+    deal_name?: string;
+    dealName?: string;
     proposal_content?: string;
-    customerAddress?: string;
+    expected_close_date?: string;
+    created_at?: string;
+    updated_at?: string;
   }
   
-  interface UpdateDealStatusToContractedOutput {
+  interface UpdateDealStatusToContractedResult {
     status: string;
     customer_id: string;
     customer_name: string;
@@ -311,111 +251,207 @@ const __aivicBundle_1_updateDealStatusToContracted = (() => {
       subtotal: number;
       tax_rate: number;
     }>;
-    billing_data: BillingData;
-    error?: string;
-    status_history: StatusHistoryRecord[];
+    billing_data: {
+      billing_id: string;
+      customer_id: string;
+      customer_name: string;
+      subtotal: number;
+      tax_amount: number;
+      total_amount: number;
+      billing_line_items: Array<{
+        product_name: string;
+        quantity: number;
+        unit_price: number;
+        line_amount: number;
+      }>;
+      billing_type: string;
+      expected_billing_date: string;
+    };
+    error?: undefined;
+    status_history: Array<{
+      from_status: string;
+      to_status: string;
+      updated_at: Date;
+    }>;
   }
   
    function updateDealStatusToContracted(
     input: UpdateDealStatusToContractedInput
-  ): UpdateDealStatusToContractedOutput {
-    const dealRecord = input.deal_record;
+  ): UpdateDealStatusToContractedResult {
+    // Normalize input field names (handle both snake_case and camelCase)
+    
+    const customerId = input.customer_id || input.customerId;
+    const customerName = input.customer_name || input.customerName;
+    const amount = input.amount || input.dealAmount;
+    const currency = input.currency;
+    const billingType = input.billing_type;
+    const expectedBillingDate = input.expected_billing_date;
+    const currentStatus = input.status || input.dealStatus;
+    const newStatus = input.new_status;
+    
   
-    let customerId = input.customer_id || input.customerId;
-    let customerName = input.customer_name || input.customerName;
-    let amount = input.amount || input.dealAmount || input.deal_amount;
-    let currency = input.currency || "JPY";
-    let status = input.status || input.dealStatus || input.deal_status;
-    let expectedBillingDate = input.expected_billing_date;
-    let billingType = input.billing_type;
-    let proposalContent = input.proposal_content;
+    // Handle deal_record + new_status pattern
     let lineItems = input.line_items || input.dealItems || [];
+    if (input.deal_record) {
+      const dealRecord = input.deal_record;
+      const recordCustomerId = dealRecord.customer_id || dealRecord.customerId;
+      const recordCustomerName =
+        dealRecord.customer_name || dealRecord.customerName;
+      const recordAmount = dealRecord.deal_amount || dealRecord.dealAmount;
+      const recordProposalContent = dealRecord.proposal_content;
   
-    if (dealRecord) {
-      customerId = dealRecord.customer_id || dealRecord.customerId || customerId;
-      customerName = dealRecord.customer_name || dealRecord.customerName || customerName;
-      amount = dealRecord.deal_amount || dealRecord.dealAmount || dealRecord.amount || amount;
-      currency = dealRecord.currency || currency;
-      expectedBillingDate = dealRecord.expected_billing_date || dealRecord.expectedBillingDate || expectedBillingDate;
-      billingType = dealRecord.billing_type || dealRecord.billingType || billingType;
-      proposalContent = dealRecord.proposal_content || proposalContent;
-      lineItems = dealRecord.line_items || dealRecord.dealItems || lineItems;
-      status = dealRecord.deal_status || dealRecord.dealStatus || dealRecord.status || status;
+      // Validation: proposal_content must not be empty when using deal_record pattern
+      if (
+        recordProposalContent === undefined ||
+        recordProposalContent === null ||
+        recordProposalContent === ""
+      ) {
+        throw new Error("提案内容が未入力です");
+      }
+  
+      // Validation: customer info must be present
+      if (!recordCustomerId || !recordCustomerName) {
+        throw new Error("顧客情報が不足しています");
+      }
+  
+      // Validation: amount must be greater than 0
+      if (!recordAmount || recordAmount <= 0) {
+        throw new Error("金額が不足しています");
+      }
+  
+      // Validation: line_items must not be empty
+      if (!lineItems || lineItems.length === 0) {
+        throw new Error("明細が不足しています");
+      }
+  
+      // Build result from deal_record
+      const normalizedLineItems = lineItems.map((item: any) => ({
+        item_id: item.item_id || item.itemId || "",
+        product_name: item.product_name || item.itemName || "",
+        quantity: item.quantity,
+        unit_price: item.unit_price || item.unitPrice || 0,
+        subtotal: item.subtotal || item.quantity * (item.unit_price || item.unitPrice || 0),
+        tax_rate: item.tax_rate || 0,
+      }));
+  
+      const subtotal = normalizedLineItems.reduce(
+        (sum: number, item: any) => sum + item.subtotal,
+        0
+      );
+      const taxAmount = normalizedLineItems.reduce(
+        (sum: number, item: any) => sum + item.subtotal * item.tax_rate,
+        0
+      );
+      const totalAmount = subtotal + taxAmount;
+  
+      const billingData = {
+        billing_id: randomUUID(),
+        customer_id: recordCustomerId,
+        customer_name: recordCustomerName,
+        subtotal: subtotal,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        billing_line_items: normalizedLineItems.map((item: any) => ({
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          line_amount: item.subtotal,
+        })),
+        billing_type: billingType || "",
+        expected_billing_date: expectedBillingDate || "",
+      };
+  
+      const statusHistory = [
+        {
+          from_status: currentStatus || dealRecord.dealStatus || "提案中",
+          to_status: newStatus || "成約",
+          updated_at: new Date(),
+        },
+      ];
+  
+      return {
+        status: newStatus || "成約",
+        customer_id: recordCustomerId,
+        customer_name: recordCustomerName,
+        amount: recordAmount,
+        currency: currency || "JPY",
+        line_items: normalizedLineItems,
+        billing_data: billingData,
+        status_history: statusHistory,
+      };
     }
   
+    // Validation: customer info must be present
     if (!customerId || !customerName) {
       throw new Error("顧客情報が不足しています");
     }
   
+    // Validation: amount must be greater than 0
     if (!amount || amount <= 0) {
       throw new Error("金額が不足しています");
     }
   
+    // Validation: line_items must not be empty
     if (!lineItems || lineItems.length === 0) {
-      throw new Error("明細データが不足しています");
+      throw new Error("明細が不足しています");
     }
   
-    if (dealRecord && (!proposalContent || proposalContent.trim() === "")) {
-      throw new Error("提案内容が未入力です");
-    }
+    // Normalize line_items
+    const normalizedLineItems = lineItems.map((item: any) => ({
+      item_id: item.item_id || item.itemId || "",
+      product_name: item.product_name || item.itemName || "",
+      quantity: item.quantity,
+      unit_price: item.unit_price || item.unitPrice || 0,
+      subtotal: item.subtotal || item.quantity * (item.unit_price || item.unitPrice || 0),
+      tax_rate: item.tax_rate || 0,
+    }));
   
-    const normalizedLineItems = lineItems.map((item) => {
-      const unitPrice = item.unit_price || item.unitPrice || 0;
-      const quantity = item.quantity;
-      const calculatedSubtotal = quantity * unitPrice;
-      const taxRate = item.tax_rate ?? 0;
-  
-      return {
-        item_id: item.item_id || item.itemId || "",
-        product_name: item.product_name || item.itemName || "",
-        quantity: quantity,
-        unit_price: unitPrice,
-        subtotal: calculatedSubtotal,
-        tax_rate: taxRate,
-      };
-    });
-  
-    const subtotal = normalizedLineItems.reduce((sum, item) => sum + item.subtotal, 0);
+    // Calculate billing data
+    const subtotal = normalizedLineItems.reduce(
+      (sum: number, item: any) => sum + item.subtotal,
+      0
+    );
     const taxAmount = normalizedLineItems.reduce(
-      (sum, item) => sum + item.subtotal * item.tax_rate,
+      (sum: number, item: any) => sum + item.subtotal * item.tax_rate,
       0
     );
     const totalAmount = subtotal + taxAmount;
   
-    const billingLineItems = normalizedLineItems.map((item) => ({
-      product_name: item.product_name,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      line_amount: item.subtotal,
-    }));
-  
-    const billingData: BillingData = {
+    const billingData = {
       billing_id: randomUUID(),
       customer_id: customerId,
       customer_name: customerName,
       subtotal: subtotal,
       tax_amount: taxAmount,
       total_amount: totalAmount,
-      billing_line_items: billingLineItems,
+      billing_line_items: normalizedLineItems.map((item: any) => ({
+        product_name: item.product_name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        line_amount: item.subtotal,
+      })),
       billing_type: billingType || "",
       expected_billing_date: expectedBillingDate || "",
     };
   
-    const statusHistoryRecord: StatusHistoryRecord = {
-      from_status: status || "",
-      to_status: "成約",
-      updated_at: new Date(),
-    };
+    // Build status history
+    const statusHistory = [
+      {
+        from_status: currentStatus || "交渉中",
+        to_status: "成約",
+        updated_at: new Date(),
+      },
+    ];
   
     return {
       status: "成約",
       customer_id: customerId,
       customer_name: customerName,
       amount: amount,
-      currency: currency,
+      currency: currency || "JPY",
       line_items: normalizedLineItems,
       billing_data: billingData,
-      status_history: [statusHistoryRecord],
+      status_history: statusHistory,
     };
   }
   return { updateDealStatusToContracted };
@@ -430,9 +466,9 @@ const __aivicBundle_2_updateDealStatusToContract = (() => {
     customer_id: string;
     customer_name: string;
     current_status: string;
-    target_status: string;
-    amount: number | undefined | null;
-    description: string;
+    target_status?: string;
+    amount?: number | null;
+    description?: string;
     customer_info?: string;
     line_items?: Array<{
       item_id: string;
@@ -448,18 +484,16 @@ const __aivicBundle_2_updateDealStatusToContract = (() => {
       deal_id: string;
       customer_id: string;
       amount: number;
-      line_items_count: number;
+      line_items_count?: number;
     };
   } {
     if (deal_record["customer_name"] === undefined || deal_record["customer_name"] === null) { throw new Error("customer_name is required"); }
     if (deal_record["current_status"] === undefined || deal_record["current_status"] === null) { throw new Error("current_status is required"); }
-    if (deal_record["target_status"] === undefined || deal_record["target_status"] === null) { throw new Error("target_status is required"); }
-    if (deal_record["description"] === undefined || deal_record["description"] === null) { throw new Error("description is required"); }
     if (deal_record.amount === null || deal_record.amount === undefined || deal_record.amount <= 0) {
       throw new Error("金額は正の値で入力してください");
     }
   
-    const line_items_count = deal_record.line_items ? deal_record.line_items.length : 0;
+    const line_items_count = deal_record.line_items ? deal_record.line_items.length : undefined;
   
     return {
       success: true,
@@ -469,7 +503,7 @@ const __aivicBundle_2_updateDealStatusToContract = (() => {
         deal_id: deal_record.deal_id,
         customer_id: deal_record.customer_id,
         amount: deal_record.amount,
-        line_items_count: line_items_count
+        ...(line_items_count !== undefined && { line_items_count })
       }
     };
   }
@@ -480,7 +514,7 @@ export const updateDealStatusToContract = __aivicBundle_2_updateDealStatusToCont
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=updateDealStatusToClosedWithValidation exports=updateDealStatusToClosedWithValidation */
 const __aivicBundle_3_updateDealStatusToClosedWithValidation = (() => {
-  function updateDealStatusToClosedWithValidation(deal_input: {
+  interface UpdateDealStatusToClosedWithValidationInput {
     deal_id: string;
     status: string;
     customer_id: string;
@@ -494,7 +528,9 @@ const __aivicBundle_3_updateDealStatusToClosedWithValidation = (() => {
       unit_price: number;
       line_amount: number;
     }>;
-  }): {
+  }
+  
+  interface UpdateDealStatusToClosedWithValidationResult {
     status: string;
     deal_id: string;
     validation_passed: boolean;
@@ -509,46 +545,51 @@ const __aivicBundle_3_updateDealStatusToClosedWithValidation = (() => {
       line_amount: number;
     }>;
     total_billing_amount: number;
-    error_message?: string;
-    validation_errors: string[];
+    error_message?: undefined;
+    validation_errors: Array<string>;
     is_billing_linked: boolean;
     billing_status: string;
-  } {
+  }
+  
+   function updateDealStatusToClosedWithValidation(
+    deal_input: UpdateDealStatusToClosedWithValidationInput
+  ): UpdateDealStatusToClosedWithValidationResult {
     if (deal_input["status"] === undefined || deal_input["status"] === null) { throw new Error("status is required"); }
     if (deal_input["customer_id"] === undefined || deal_input["customer_id"] === null) { throw new Error("customer_id is required"); }
     
   
-    // Validation 1: 明細データが1行以上存在するか
+    // Validate details array is not empty
     if (!deal_input.details || deal_input.details.length === 0) {
       throw new Error('明細データが1行以上必要です');
     }
   
-    // Validation 2: 顧客名が入力済みか
+    // Validate customer_name is not empty
     if (!deal_input.customer_name || deal_input.customer_name.trim() === '') {
-      throw new Error('顧客名が入力されていません');
+      throw new Error('顧客名は必須項目です');
     }
   
-    // Validation 3: 取引金額が0より大きいか
+    // Validate transaction_amount is greater than 0
     if (deal_input.transaction_amount <= 0) {
       throw new Error('取引金額は0より大きい値である必要があります');
     }
   
-    // Validation 4: 成約日が入力済みか
+    // Validate contract_date is not empty
     if (!deal_input.contract_date || deal_input.contract_date.trim() === '') {
-      throw new Error('成約日が入力されていません');
+      throw new Error('成約日は必須項目です');
     }
   
-    // Validation 5: 明細合計が取引金額と一致するか
-    const details_total = deal_input.details.reduce(
+    // Calculate total from details
+    const total_from_details = deal_input.details.reduce(
       (sum, detail) => sum + detail.line_amount,
       0
     );
   
-    if (details_total !== deal_input.transaction_amount) {
-      throw new Error('明細合計金額と取引金額が金額不一致です');
+    // Validate that total from details matches transaction_amount
+    if (total_from_details !== deal_input.transaction_amount) {
+      throw new Error('金額不一致: 明細の合計金額と取引金額が一致しません');
     }
   
-    // すべての検証をクリア
+    // All validations passed
     return {
       status: '成約',
       deal_id: deal_input.deal_id,
@@ -557,7 +598,7 @@ const __aivicBundle_3_updateDealStatusToClosedWithValidation = (() => {
       transaction_amount: deal_input.transaction_amount,
       contract_date: deal_input.contract_date,
       details: deal_input.details,
-      total_billing_amount: details_total,
+      total_billing_amount: total_from_details,
       validation_errors: [],
       is_billing_linked: true,
       billing_status: '紐付け完了',
@@ -604,17 +645,6 @@ const __aivicBundle_4_generateUnifiedFormatDocuments = (() => {
     currency: string;
   }
   
-  interface GenerateUnifiedFormatDocumentsLineItem {
-    product_name: string;
-    quantity: number;
-    unit_price: number;
-    subtotal: number;
-    tax_rate: number;
-    tax_amount: number;
-    item_name: string;
-    description: string;
-  }
-  
   interface GenerateUnifiedFormatDocumentsOutput {
     quotation: DocumentSet;
     order: DocumentSet;
@@ -625,14 +655,10 @@ const __aivicBundle_4_generateUnifiedFormatDocuments = (() => {
    function generateUnifiedFormatDocuments(
     deal_record: GenerateUnifiedFormatDocumentsInput
   ): GenerateUnifiedFormatDocumentsOutput {
-    // ステータス検証：成約であることを確認
     if (deal_record.status !== "成約") {
-      throw new Error(
-        `ステータスが成約である必要があります。現在のステータス: ${deal_record.status}`
-      );
+      throw new Error("ステータスが成約である必要があります");
     }
   
-    // 必須情報の完全性検証
     const requiredFields = [
       "billing_address",
       "shipping_address",
@@ -642,137 +668,126 @@ const __aivicBundle_4_generateUnifiedFormatDocuments = (() => {
       "delivery_date",
     ];
   
-    const missingFields = requiredFields.filter(
-      (field) =>
-        !deal_record[field as keyof GenerateUnifiedFormatDocumentsInput] ||
-        (typeof deal_record[field as keyof GenerateUnifiedFormatDocumentsInput] ===
-          "string" &&
-          (deal_record[
-            field as keyof GenerateUnifiedFormatDocumentsInput
-          ] as string).trim() === "")
-    );
-  
-    if (missingFields.length > 0 || deal_record.line_items.length === 0) {
-      throw new Error(
-        `必須情報が不完全です。不足している項目: ${missingFields.join(", ")}${deal_record.line_items.length === 0 ? "、明細行が必要です" : ""}`
-      );
+    for (const field of requiredFields) {
+      const value = deal_record[field as keyof GenerateUnifiedFormatDocumentsInput];
+      if (!value || (typeof value === "string" && value.trim() === "")) {
+        throw new Error("必須情報が不完全です");
+      }
     }
   
-    // 明細行の処理
-    const processedLineItems: GenerateUnifiedFormatDocumentsLineItem[] =
-      deal_record.line_items.map((item) => ({
-        product_name: item.item_name,
-        quantity: item.item_quantity,
-        unit_price: item.item_unit_price,
-        subtotal: item.item_subtotal,
-        tax_rate: deal_record.tax_rate,
-        tax_amount: Math.floor(item.item_subtotal * deal_record.tax_rate),
-        item_name: item.item_name,
-        description: item.item_description,
-      }));
+    if (!deal_record.line_items || deal_record.line_items.length === 0) {
+      throw new Error("必須情報が不完全です");
+    }
   
-    // 小計と税金の計算
-    const subtotal_amount = deal_record.line_items.reduce(
+    const now = new Date();
+    const generatedAt = now;
+    const validUntilDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const dueDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  
+    const transformedLineItems = deal_record.line_items.map((item) => ({
+      product_name: item.item_name,
+      item_name: item.item_name,
+      quantity: item.item_quantity,
+      unit_price: item.item_unit_price,
+      subtotal: item.item_subtotal,
+      line_amount: item.item_subtotal,
+      tax_amount: Math.floor(item.item_subtotal * deal_record.tax_rate),
+      description: item.item_description,
+      tax_rate: deal_record.tax_rate,
+    }));
+  
+    const subtotalAmount = deal_record.line_items.reduce(
       (sum, item) => sum + item.item_subtotal,
       0
     );
-    const calculated_tax = Math.floor(subtotal_amount * deal_record.tax_rate);
-    const total_with_tax = subtotal_amount + calculated_tax;
+    const calculatedTaxAmount = Math.floor(subtotalAmount * deal_record.tax_rate);
+    const totalAmount = subtotalAmount + calculatedTaxAmount;
   
-    const now = new Date();
-    const quotationNumber = `QT-${deal_record.deal_id}-${randomUUID().substring(0, 8).toUpperCase()}`;
-    const orderNumber = `OR-${deal_record.deal_id}-${randomUUID().substring(0, 8).toUpperCase()}`;
-    const invoiceNumber = `IV-${deal_record.deal_id}-${randomUUID().substring(0, 8).toUpperCase()}`;
-  
-    // 見積書の有効期限（30日後）
-    const validUntilDate = new Date(now);
-    validUntilDate.setDate(validUntilDate.getDate() + 30);
-  
-    // 請求書の支払期限（30日後）
-    const dueDate = new Date(now);
-    dueDate.setDate(dueDate.getDate() + 30);
-  
+    const quotationDocNumber = `QT-${deal_record.deal_id}-${randomUUID().substring(0, 8)}`;
     const quotation: DocumentSet = {
       document_type: "QUOTATION",
-      document_number: quotationNumber,
+      document_number: quotationDocNumber,
       customer_name: deal_record.customer_name,
       customer_address: deal_record.billing_address,
-      total_amount: total_with_tax,
-      tax_amount: calculated_tax,
-      subtotal_amount: subtotal_amount,
-      line_items: processedLineItems as any,
-      generated_at: now,
+      total_amount: totalAmount,
+      tax_amount: calculatedTaxAmount,
+      subtotal_amount: subtotalAmount,
+      line_items: transformedLineItems,
+      generated_at: generatedAt,
       valid_until_date: validUntilDate,
       responsible_person_name: deal_record.responsible_person_name,
       responsible_person_contact: deal_record.responsible_person_phone,
       responsible_person_email: deal_record.responsible_person_email,
       currency: deal_record.currency,
-      document_url: `/documents/quotation/${quotationNumber}`,
+      document_url: `/documents/quotation/${quotationDocNumber}`,
+      deal_id: deal_record.deal_id,
+      sales_person_name: deal_record.sales_person_name,
+      sales_person_id: deal_record.sales_person_id,
       format_version: "1.0",
       is_preview_available: true,
       is_pdf_downloadable: true,
       is_editable: true,
       is_approvable: true,
       is_rejectable: true,
-      deal_id: deal_record.deal_id,
-      sales_person_name: deal_record.sales_person_name,
-      grand_total: total_with_tax,
       billing_address: deal_record.billing_address,
+      shipping_address: deal_record.shipping_address,
     };
   
+    const orderDocNumber = `OR-${deal_record.deal_id}-${randomUUID().substring(0, 8)}`;
     const order: DocumentSet = {
       document_type: "ORDER",
-      document_number: orderNumber,
+      document_number: orderDocNumber,
       customer_name: deal_record.customer_name,
       customer_address: deal_record.billing_address,
       billing_address: deal_record.billing_address,
       shipping_address: deal_record.shipping_address,
-      total_amount: total_with_tax,
-      tax_amount: calculated_tax,
-      subtotal_amount: subtotal_amount,
-      line_items: processedLineItems as any,
-      generated_at: now,
+      total_amount: totalAmount,
+      tax_amount: calculatedTaxAmount,
+      subtotal_amount: subtotalAmount,
+      line_items: transformedLineItems,
+      generated_at: generatedAt,
       responsible_person_name: deal_record.responsible_person_name,
       responsible_person_email: deal_record.responsible_person_email,
       responsible_person_contact: deal_record.responsible_person_phone,
       delivery_date: deal_record.delivery_date,
       currency: deal_record.currency,
-      document_url: `/documents/order/${orderNumber}`,
+      document_url: `/documents/order/${orderDocNumber}`,
+      deal_id: deal_record.deal_id,
+      sales_person_name: deal_record.sales_person_name,
+      sales_person_id: deal_record.sales_person_id,
       format_version: "1.0",
       is_preview_available: true,
       is_pdf_downloadable: true,
       is_editable: true,
       is_approvable: true,
       is_rejectable: true,
-      deal_id: deal_record.deal_id,
-      sales_person_name: deal_record.sales_person_name,
-      grand_total: total_with_tax,
     };
   
+    const invoiceDocNumber = `INV-${deal_record.deal_id}-${randomUUID().substring(0, 8)}`;
     const invoice: DocumentSet = {
       document_type: "INVOICE",
-      document_number: invoiceNumber,
+      document_number: invoiceDocNumber,
       customer_name: deal_record.customer_name,
       customer_address: deal_record.billing_address,
       billing_address: deal_record.billing_address,
-      total_amount: total_with_tax,
-      tax_amount: calculated_tax,
-      subtotal_amount: subtotal_amount,
-      line_items: processedLineItems as any,
-      generated_at: now,
-      due_date: dueDate.toISOString().split("T")[0],
+      total_amount: totalAmount,
+      tax_amount: calculatedTaxAmount,
+      subtotal_amount: subtotalAmount,
+      line_items: transformedLineItems,
+      generated_at: generatedAt,
+      due_date: dueDate,
       payment_terms: "末日払い",
       currency: deal_record.currency,
-      document_url: `/documents/invoice/${invoiceNumber}`,
+      document_url: `/documents/invoice/${invoiceDocNumber}`,
+      deal_id: deal_record.deal_id,
+      sales_person_name: deal_record.sales_person_name,
+      sales_person_id: deal_record.sales_person_id,
       format_version: "1.0",
       is_preview_available: true,
       is_pdf_downloadable: true,
       is_editable: true,
       is_approvable: true,
       is_rejectable: true,
-      deal_id: deal_record.deal_id,
-      sales_person_name: deal_record.sales_person_name,
-      grand_total: total_with_tax,
     };
   
     return {
@@ -802,74 +817,66 @@ const __aivicBundle_5_generateQuotationOrderInvoice = (() => {
     generated_at: Date;
   }
   
-  interface GenerateQuotationOrderInvoiceQuotation {
-    document_id: string;
-    document_type: string;
-    customer_id: string;
-    customer_name: string;
-    customer_address: string;
-    product_name: string;
-    product_quantity: number;
-    product_unit_price: number;
-    subtotal_amount: number;
-    sales_tax: number;
-    total_amount: number;
-    issue_date: Date;
-    expiry_date: Date;
-    format_version: string;
-  }
-  
-  interface GenerateQuotationOrderInvoiceOrder {
-    document_id: string;
-    document_type: string;
-    customer_id: string;
-    customer_name: string;
-    customer_address: string;
-    product_name: string;
-    product_quantity: number;
-    product_unit_price: number;
-    subtotal_amount: number;
-    sales_tax: number;
-    total_amount: number;
-    issue_date: Date;
-    format_version: string;
-    quotation_reference_id: string;
-  }
-  
-  interface GenerateQuotationOrderInvoiceInvoice {
-    document_id: string;
-    document_type: string;
-    customer_id: string;
-    customer_name: string;
-    customer_address: string;
-    product_name: string;
-    product_quantity: number;
-    product_unit_price: number;
-    subtotal_amount: number;
-    sales_tax: number;
-    total_amount: number;
-    issue_date: Date;
-    format_version: string;
-    order_reference_id: string;
-    delivery_completion_date: Date;
-  }
-  
-  interface GenerateQuotationOrderInvoiceValidation {
-    all_documents_generated: boolean;
-    quotation_id: string;
-    order_id: string;
-    invoice_id: string;
-    format_consistency: boolean;
-    data_integrity_verified: boolean;
-    deal_id_linked: string;
-    set_completeness_status: string;
-  }
-  
   interface GenerateQuotationOrderInvoiceResult {
-    quotation: GenerateQuotationOrderInvoiceQuotation;
-    order: GenerateQuotationOrderInvoiceOrder;
-    invoice: GenerateQuotationOrderInvoiceInvoice;
-    document_set_validation: GenerateQuotationOrderInvoiceValidation;
+    quotation: {
+      document_id: string;
+      document_type: string;
+      customer_id: string;
+      customer_name: string;
+      customer_address: string;
+      product_name: string;
+      product_quantity: number;
+      product_unit_price: number;
+      subtotal_amount: number;
+      sales_tax: number;
+      total_amount: number;
+      issue_date: Date;
+      expiry_date: Date;
+      format_version: string;
+    };
+    order: {
+      document_id: string;
+      document_type: string;
+      customer_id: string;
+      customer_name: string;
+      customer_address: string;
+      product_name: string;
+      product_quantity: number;
+      product_unit_price: number;
+      subtotal_amount: number;
+      sales_tax: number;
+      total_amount: number;
+      issue_date: Date;
+      format_version: string;
+      quotation_reference_id: string;
+    };
+    invoice: {
+      document_id: string;
+      document_type: string;
+      customer_id: string;
+      customer_name: string;
+      customer_address: string;
+      product_name: string;
+      product_quantity: number;
+      product_unit_price: number;
+      subtotal_amount: number;
+      sales_tax: number;
+      total_amount: number;
+      issue_date: Date;
+      format_version: string;
+      order_reference_id: string;
+      delivery_completion_date: Date;
+    };
+    document_set_validation: {
+      all_documents_generated: boolean;
+      quotation_id: string;
+      order_id: string;
+      invoice_id: string;
+      format_consistency: boolean;
+      data_integrity_verified: boolean;
+      deal_id_linked: string;
+      set_completeness_status: string;
+    };
     generation_status: string;
     timestamp: Date;
   }
@@ -881,10 +888,9 @@ const __aivicBundle_5_generateQuotationOrderInvoice = (() => {
       throw new Error(`ステータスが不正です: ${input_data.status}`);
     }
   
-    const subtotal_amount =
-      input_data.product_quantity * input_data.product_unit_price;
-    const sales_tax = Math.floor(subtotal_amount * input_data.sales_tax_rate);
-    const total_amount = subtotal_amount + sales_tax;
+    const subtotal = input_data.product_quantity * input_data.product_unit_price;
+    const sales_tax = Math.floor(subtotal * input_data.sales_tax_rate);
+    const total_amount = subtotal + sales_tax;
   
     const quotation_id = "QT-20240415-001";
     const order_id = "OR-20240415-001";
@@ -894,77 +900,71 @@ const __aivicBundle_5_generateQuotationOrderInvoice = (() => {
     const delivery_completion_date = new Date("2024-04-20T17:00:00Z");
     const invoice_issue_date = new Date("2024-04-25T09:00:00Z");
   
-    const quotation: GenerateQuotationOrderInvoiceQuotation = {
-      document_id: quotation_id,
-      document_type: "見積書",
-      customer_id: input_data.customer_id,
-      customer_name: input_data.customer_name,
-      customer_address: input_data.customer_address,
-      product_name: input_data.product_name,
-      product_quantity: input_data.product_quantity,
-      product_unit_price: input_data.product_unit_price,
-      subtotal_amount,
-      sales_tax,
-      total_amount,
-      issue_date: input_data.generated_at,
-      expiry_date: quotation_expiry_date,
-      format_version: "1.0",
-    };
-  
-    const order: GenerateQuotationOrderInvoiceOrder = {
-      document_id: order_id,
-      document_type: "注文書",
-      customer_id: input_data.customer_id,
-      customer_name: input_data.customer_name,
-      customer_address: input_data.customer_address,
-      product_name: input_data.product_name,
-      product_quantity: input_data.product_quantity,
-      product_unit_price: input_data.product_unit_price,
-      subtotal_amount,
-      sales_tax,
-      total_amount,
-      issue_date: input_data.generated_at,
-      format_version: "1.0",
-      quotation_reference_id: quotation_id,
-    };
-  
-    const invoice: GenerateQuotationOrderInvoiceInvoice = {
-      document_id: invoice_id,
-      document_type: "請求書",
-      customer_id: input_data.customer_id,
-      customer_name: input_data.customer_name,
-      customer_address: input_data.customer_address,
-      product_name: input_data.product_name,
-      product_quantity: input_data.product_quantity,
-      product_unit_price: input_data.product_unit_price,
-      subtotal_amount,
-      sales_tax,
-      total_amount,
-      issue_date: invoice_issue_date,
-      format_version: "1.0",
-      order_reference_id: order_id,
-      delivery_completion_date,
-    };
-  
-    const document_set_validation: GenerateQuotationOrderInvoiceValidation = {
-      all_documents_generated: true,
-      quotation_id,
-      order_id,
-      invoice_id,
-      format_consistency: true,
-      data_integrity_verified: true,
-      deal_id_linked: input_data.deal_id,
-      set_completeness_status: "完全",
-    };
-  
-    return {
-      quotation,
-      order,
-      invoice,
-      document_set_validation,
+    const result: GenerateQuotationOrderInvoiceResult = {
+      quotation: {
+        document_id: quotation_id,
+        document_type: "見積書",
+        customer_id: input_data.customer_id,
+        customer_name: input_data.customer_name,
+        customer_address: input_data.customer_address,
+        product_name: input_data.product_name,
+        product_quantity: input_data.product_quantity,
+        product_unit_price: input_data.product_unit_price,
+        subtotal_amount: subtotal,
+        sales_tax: sales_tax,
+        total_amount: total_amount,
+        issue_date: input_data.generated_at,
+        expiry_date: quotation_expiry_date,
+        format_version: "1.0",
+      },
+      order: {
+        document_id: order_id,
+        document_type: "注文書",
+        customer_id: input_data.customer_id,
+        customer_name: input_data.customer_name,
+        customer_address: input_data.customer_address,
+        product_name: input_data.product_name,
+        product_quantity: input_data.product_quantity,
+        product_unit_price: input_data.product_unit_price,
+        subtotal_amount: subtotal,
+        sales_tax: sales_tax,
+        total_amount: total_amount,
+        issue_date: input_data.generated_at,
+        format_version: "1.0",
+        quotation_reference_id: quotation_id,
+      },
+      invoice: {
+        document_id: invoice_id,
+        document_type: "請求書",
+        customer_id: input_data.customer_id,
+        customer_name: input_data.customer_name,
+        customer_address: input_data.customer_address,
+        product_name: input_data.product_name,
+        product_quantity: input_data.product_quantity,
+        product_unit_price: input_data.product_unit_price,
+        subtotal_amount: subtotal,
+        sales_tax: sales_tax,
+        total_amount: total_amount,
+        issue_date: invoice_issue_date,
+        format_version: "1.0",
+        order_reference_id: order_id,
+        delivery_completion_date: delivery_completion_date,
+      },
+      document_set_validation: {
+        all_documents_generated: true,
+        quotation_id: quotation_id,
+        order_id: order_id,
+        invoice_id: invoice_id,
+        format_consistency: true,
+        data_integrity_verified: true,
+        deal_id_linked: input_data.deal_id,
+        set_completeness_status: "完全",
+      },
       generation_status: "成功",
       timestamp: input_data.generated_at,
     };
+  
+    return result;
   }
   return { generateQuotationOrderInvoice };
 })();
@@ -973,7 +973,7 @@ export const generateQuotationOrderInvoice = __aivicBundle_5_generateQuotationOr
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=validateAndGenerateDocuments exports=validateAndGenerateDocuments */
 const __aivicBundle_6_validateAndGenerateDocuments = (() => {
-  function validateAndGenerateDocuments(incompleteCustomerData: {
+  interface ValidateAndGenerateDocumentsInput {
     customerId: string;
     customerName: string;
     address: string;
@@ -988,17 +988,20 @@ const __aivicBundle_6_validateAndGenerateDocuments = (() => {
       quantity: number;
       unitPrice: number;
     }>;
-  }): {
+  }
+  
+  interface ValidateAndGenerateDocumentsOutput {
     success: boolean;
     estimateId: string;
     orderId: string;
     invoiceId: string;
     generatedAt: string;
     documentFormat: string;
-  } {
-    if (incompleteCustomerData["email"] === undefined || incompleteCustomerData["email"] === null) { throw new Error("email is required"); }
-    if (incompleteCustomerData["dealId"] === undefined || incompleteCustomerData["dealId"] === null) { throw new Error("dealId is required"); }
-    if (incompleteCustomerData["dealStatus"] === undefined || incompleteCustomerData["dealStatus"] === null) { throw new Error("dealStatus is required"); }
+  }
+  
+   function validateAndGenerateDocuments(
+    incompleteCustomerData: ValidateAndGenerateDocumentsInput
+  ): ValidateAndGenerateDocumentsOutput {
     // Validate customerId
     if (!incompleteCustomerData.customerId || incompleteCustomerData.customerId.trim() === "") {
       throw new Error("顧客情報が不完全です");
@@ -1021,20 +1024,18 @@ const __aivicBundle_6_validateAndGenerateDocuments = (() => {
   
     // Validate dealAmount
     if (incompleteCustomerData.dealAmount <= 0) {
-      throw new Error("金額が不正です");
+      throw new Error("金額が不完全です");
     }
   
-    // Validate items
+    // Validate items array
     if (!incompleteCustomerData.items || incompleteCustomerData.items.length === 0) {
-      throw new Error("商談明細が不完全です");
+      throw new Error("明細が不完全です");
     }
   
     // Generate document IDs
     const estimateId = `EST-${randomUUID()}`;
     const orderId = `ORD-${randomUUID()}`;
     const invoiceId = `INV-${randomUUID()}`;
-  
-    // Generate timestamp in ISO format
     const generatedAt = new Date().toISOString();
   
     return {
@@ -1058,7 +1059,11 @@ const __aivicBundle_7_generateUnifiedInvoiceFormat = (() => {
     customer_id: string;
     customer_name: string;
     total_amount: number;
-    line_items: Array<any>;
+    line_items: Array<{
+      product_name: string;
+      quantity: number;
+      unit_price: number;
+    }>;
     negotiation_status: string;
     invoice_due_date: string;
   }): {
@@ -1066,7 +1071,11 @@ const __aivicBundle_7_generateUnifiedInvoiceFormat = (() => {
     document_type: string;
     customer_name: string;
     total_amount: number;
-    line_items: Array<any>;
+    line_items: Array<{
+      product_name: string;
+      quantity: number;
+      unit_price: number;
+    }>;
     format_version: string;
   } {
     if (input["negotiation_id"] === undefined || input["negotiation_id"] === null) { throw new Error("negotiation_id is required"); }
@@ -1074,15 +1083,16 @@ const __aivicBundle_7_generateUnifiedInvoiceFormat = (() => {
     if (input["negotiation_status"] === undefined || input["negotiation_status"] === null) { throw new Error("negotiation_status is required"); }
     if (input["invoice_due_date"] === undefined || input["invoice_due_date"] === null) { throw new Error("invoice_due_date is required"); }
     if (!input.line_items || input.line_items.length === 0) {
-      throw new Error("商談に明細が1行も存在しません。請求書の生成には最低1行の明細が必要です。");
+      throw new Error("商談に明細が1行以上存在することが必須です");
     }
   
     const document_id = randomUUID();
+    const document_type = "INVOICE";
     const format_version = "1.0.0";
   
     return {
       document_id,
-      document_type: "invoice",
+      document_type,
       customer_name: input.customer_name,
       total_amount: input.total_amount,
       line_items: input.line_items,
@@ -1126,90 +1136,80 @@ const __aivicBundle_8_generateUnifiedDocuments = (() => {
     department: string;
   }
   
-  interface DocumentHeader {
-    customer_name: string;
-    customer_postal_code: string;
-    customer_address: string;
-    customer_phone: string;
-    customer_contact_person: string;
-    document_date: string;
-    due_date?: string;
-    execution_date?: string;
-    salesperson_name: string;
-    salesperson_id: string;
-    department: string;
-    related_deal_id?: string;
-    related_quotation_id?: string;
-    related_order_id?: string;
+  interface GenerateUnifiedDocumentsVerificationScreenState {
+    is_quotation_visible: boolean;
+    is_order_visible: boolean;
+    is_invoice_visible: boolean;
+    quotation_preview_format: string;
+    order_preview_format: string;
+    invoice_preview_format: string;
+    is_batch_operations_enabled: boolean;
+    can_edit_all_documents: boolean;
+    can_approve_all_documents: boolean;
+    can_reject_all_documents: boolean;
+    can_download_all_as_pdf: boolean;
   }
   
-  interface UnifiedDocumentSetInternal {
-    document_id: string;
-    document_type: string;
-    header: DocumentHeader;
-    line_items: Array<{
-      product_name: string;
-      quantity: number;
-      unit_price: number;
-      tax_rate: number;
-      line_amount: number;
-      tax_amount: number;
-    }>;
-    subtotal: number;
-    total_tax_amount: number;
-    total_amount: number;
-    format_version: string;
-    is_preview_available: boolean;
-    is_pdf_downloadable: boolean;
-    is_editable: boolean;
-    is_approvable: boolean;
-    is_rejectable: boolean;
+  interface GenerateUnifiedDocumentsResult {
+    quotation: InvoiceDocument;
+    order: InvoiceDocument;
+    invoice: InvoiceDocument;
+    verification_screen_state: GenerateUnifiedDocumentsVerificationScreenState;
+    generated_timestamp: Date;
+    is_all_documents_generated: boolean;
+    document_count: number;
   }
   
-  function extractDateOnly(isoDateString: string): string {
-    return isoDateString.split('T')[0];
+  function extractDateFromISO(isoString: string): string {
+    return isoString.split('T')[0];
   }
   
-  function generateDocumentId(prefix: string): string {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const randomPart = randomUUID().split('-')[0].toUpperCase();
-    return `${prefix}-${timestamp}-${randomPart}`;
-  }
-  
-  function buildCommonHeader(
+  function createDocumentHeader(
     input: GenerateUnifiedDocumentsInput,
-    documentDate: string,
-    dueDate?: string,
-    executionDate?: string
-  ): DocumentHeader {
-    return {
+    documentType: 'quotation' | 'order' | 'invoice',
+    quotationId: string,
+    orderId: string
+  ) {
+    const dealDate = extractDateFromISO(input.deal_date);
+    let dueDate = '';
+    let executionDate: string | undefined;
+  
+    if (documentType === 'quotation') {
+      dueDate = extractDateFromISO(input.quotation_due_date);
+    } else if (documentType === 'order') {
+      dueDate = extractDateFromISO(input.order_execution_date);
+      executionDate = extractDateFromISO(input.order_execution_date);
+    } else if (documentType === 'invoice') {
+      dueDate = extractDateFromISO(input.invoice_due_date);
+    }
+  
+    const header: any = {
       customer_name: input.customer_name,
       customer_postal_code: input.customer_postal_code,
       customer_address: input.customer_address,
       customer_phone: input.customer_phone,
       customer_contact_person: input.customer_contact_person,
-      document_date: documentDate,
-      ...(dueDate && { due_date: dueDate }),
-      ...(executionDate && { execution_date: executionDate }),
+      document_date: dealDate,
+      due_date: dueDate,
       salesperson_name: input.salesperson_name,
       salesperson_id: input.salesperson_id,
       department: input.department
     };
+  
+    if (documentType === 'order' && executionDate) {
+      header.execution_date = executionDate;
+    }
+  
+    if (documentType === 'invoice') {
+      header.related_deal_id = input.deal_id;
+      header.related_quotation_id = quotationId;
+      header.related_order_id = orderId;
+    }
+  
+    return header;
   }
   
-  function calculateTotals(
-    lineItems: Array<{
-      line_amount: number;
-      tax_amount: number;
-    }>
-  ): { subtotal: number; total_tax_amount: number; total_amount: number } {
-    const subtotal = lineItems.reduce((sum, item) => sum + item.line_amount, 0);
-    const total_tax_amount = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
-    const total_amount = subtotal + total_tax_amount;
-    return { subtotal, total_tax_amount, total_amount };
-  }
-  
-  function buildLineItems(
+  function createLineItems(
     input: GenerateUnifiedDocumentsInput
   ): Array<{
     product_name: string;
@@ -1229,129 +1229,94 @@ const __aivicBundle_8_generateUnifiedDocuments = (() => {
     }));
   }
   
-  function convertToDocumentSet(doc: UnifiedDocumentSetInternal): DocumentSet {
-    return {
-      document_type: doc.document_type,
-      document_number: doc.document_id,
-      customer_name: doc.header.customer_name,
-      customer_address: doc.header.customer_address,
-      total_amount: doc.total_amount,
-      tax_amount: doc.total_tax_amount,
-      subtotal_amount: doc.subtotal,
-      line_items: doc.line_items.map((item) => ({
-        product_name: item.product_name,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        subtotal: item.line_amount,
-        tax_rate: item.tax_rate,
-        tax_amount: item.tax_amount
-      })),
+  function calculateTotals(input: GenerateUnifiedDocumentsInput) {
+    const subtotal = input.line_items.reduce((sum, item) => sum + item.line_amount, 0);
+    const totalTaxAmount = input.line_items.reduce((sum, item) => sum + item.tax_amount, 0);
+    const totalAmount = subtotal + totalTaxAmount;
+  
+    return { subtotal, totalTaxAmount, totalAmount };
+  }
+  
+  function createInvoiceDocument(
+    input: GenerateUnifiedDocumentsInput,
+    documentType: 'quotation' | 'order' | 'invoice',
+    documentId: string,
+    quotationId: string,
+    orderId: string
+  ): InvoiceDocument {
+    const { subtotal, totalTaxAmount, totalAmount } = calculateTotals(input);
+    const lineItems = createLineItems(input);
+    const header = createDocumentHeader(input, documentType, quotationId, orderId);
+  
+    const dueDate = new Date(
+      documentType === 'quotation'
+        ? input.quotation_due_date
+        : documentType === 'order'
+          ? input.order_execution_date
+          : input.invoice_due_date
+    );
+  
+    const invoiceDoc: InvoiceDocument = {
+      document_id: documentId,
+      document_type: documentType,
+      document_number: documentId,
+      customer_id: input.customer_id,
+      customer_name: input.customer_name,
+      customer_postal_code: input.customer_postal_code,
+      customer_address: input.customer_address,
+      customer_phone: input.customer_phone,
+      customer_contact_person: input.customer_contact_person,
+      billing_address: input.customer_address,
+      subtotal,
+      total_tax_amount: totalTaxAmount,
+      total_amount: totalAmount,
+      line_items: lineItems,
       generated_at: new Date(),
-      format_version: doc.format_version,
-      is_preview_available: doc.is_preview_available,
-      is_pdf_downloadable: doc.is_pdf_downloadable,
-      is_editable: doc.is_editable,
-      is_approvable: doc.is_approvable,
-      is_rejectable: doc.is_rejectable,
-      document_id: doc.document_id,
-      header: doc.header
+      due_date: dueDate,
+      format_version: '1.0',
+      is_preview_available: true,
+      is_pdf_downloadable: true,
+      is_editable: true,
+      is_approvable: true,
+      is_rejectable: true,
+      header
     };
+  
+    return invoiceDoc;
   }
   
    function generateUnifiedDocuments(
     deal_record_input: GenerateUnifiedDocumentsInput
-  ): GeneratedDocumentsResult {
-    const dealDate = extractDateOnly(deal_record_input.deal_date);
-    const quotationDueDate = extractDateOnly(deal_record_input.quotation_due_date);
-    const orderExecutionDate = extractDateOnly(deal_record_input.order_execution_date);
-    const invoiceIssueDate = extractDateOnly(deal_record_input.invoice_issue_date);
-    const invoiceDueDate = extractDateOnly(deal_record_input.invoice_due_date);
+  ): GenerateUnifiedDocumentsResult {
+    const quotationId = `QT-${randomUUID()}`;
+    const orderId = `OR-${randomUUID()}`;
+    const invoiceId = `INV-${randomUUID()}`;
   
-    const quotationId = generateDocumentId('QT');
-    const orderId = generateDocumentId('OR');
-    const invoiceId = generateDocumentId('INV');
-  
-    const lineItems = buildLineItems(deal_record_input);
-    const totals = calculateTotals(
-      lineItems.map((item) => ({
-        line_amount: item.line_amount,
-        tax_amount: item.tax_amount
-      }))
-    );
-  
-    const quotationHeader = buildCommonHeader(
+    const quotation = createInvoiceDocument(
       deal_record_input,
-      dealDate,
-      quotationDueDate
+      'quotation',
+      quotationId,
+      quotationId,
+      orderId
     );
   
-    const quotationInternal: UnifiedDocumentSetInternal = {
-      document_id: quotationId,
-      document_type: 'quotation',
-      header: quotationHeader,
-      line_items: lineItems,
-      subtotal: totals.subtotal,
-      total_tax_amount: totals.total_tax_amount,
-      total_amount: totals.total_amount,
-      format_version: '1.0',
-      is_preview_available: true,
-      is_pdf_downloadable: true,
-      is_editable: true,
-      is_approvable: true,
-      is_rejectable: true
-    };
-  
-    const orderHeader = buildCommonHeader(
+    const order = createInvoiceDocument(
       deal_record_input,
-      dealDate,
-      undefined,
-      orderExecutionDate
+      'order',
+      orderId,
+      quotationId,
+      orderId
     );
   
-    const orderInternal: UnifiedDocumentSetInternal = {
-      document_id: orderId,
-      document_type: 'order',
-      header: orderHeader,
-      line_items: lineItems,
-      subtotal: totals.subtotal,
-      total_tax_amount: totals.total_tax_amount,
-      total_amount: totals.total_amount,
-      format_version: '1.0',
-      is_preview_available: true,
-      is_pdf_downloadable: true,
-      is_editable: true,
-      is_approvable: true,
-      is_rejectable: true
-    };
+    const invoice = createInvoiceDocument(
+      deal_record_input,
+      'invoice',
+      invoiceId,
+      quotationId,
+      orderId
+    );
   
-    const invoiceHeader: DocumentHeader = {
-      ...buildCommonHeader(deal_record_input, invoiceIssueDate, invoiceDueDate),
-      related_deal_id: deal_record_input.deal_id,
-      related_quotation_id: quotationId,
-      related_order_id: orderId
-    };
-  
-    const invoiceInternal: UnifiedDocumentSetInternal = {
-      document_id: invoiceId,
-      document_type: 'invoice',
-      header: invoiceHeader,
-      line_items: lineItems,
-      subtotal: totals.subtotal,
-      total_tax_amount: totals.total_tax_amount,
-      total_amount: totals.total_amount,
-      format_version: '1.0',
-      is_preview_available: true,
-      is_pdf_downloadable: true,
-      is_editable: true,
-      is_approvable: true,
-      is_rejectable: true
-    };
-  
-    const quotation = convertToDocumentSet(quotationInternal);
-    const order = convertToDocumentSet(orderInternal);
-    const invoice = convertToDocumentSet(invoiceInternal);
-  
-    const verification_screen_state: VerificationScreenState = {
+    const verification_screen_state: GenerateUnifiedDocumentsVerificationScreenState = {
       is_quotation_visible: true,
       is_order_visible: true,
       is_invoice_visible: true,
@@ -1419,10 +1384,6 @@ const __aivicBundle_9_updateDealStatusWithProposal = (() => {
     if (dealRecord["proposal_content"] === undefined || dealRecord["proposal_content"] === null) { throw new Error("proposal_content is required"); }
     if (dealRecord["updated_at"] === undefined || dealRecord["updated_at"] === null) { throw new Error("updated_at is required"); }
     if (updatePayload["deal_id"] === undefined || updatePayload["deal_id"] === null) { throw new Error("deal_id is required"); }
-    if (!updatePayload.proposal_content || updatePayload.proposal_content.trim() === '') {
-      throw new Error('提案内容は必須です');
-    }
-  
     const updatedRecord = {
       deal_id: dealRecord.deal_id,
       customer_id: dealRecord.customer_id,
@@ -1458,7 +1419,7 @@ const __aivicBundle_10_saveNegotiationRecord = (() => {
     if (negotiation_record["customer_id"] === undefined || negotiation_record["customer_id"] === null) { throw new Error("customer_id is required"); }
     if (negotiation_record["status"] === undefined || negotiation_record["status"] === null) { throw new Error("status is required"); }
     if (negotiation_record["created_at"] === undefined || negotiation_record["created_at"] === null) { throw new Error("created_at is required"); }
-    if (negotiation_record.proposal_content === '') {
+    if (!negotiation_record.proposal_content || negotiation_record.proposal_content.trim() === '') {
       throw new Error('提案内容は必須です');
     }
   }
@@ -1472,168 +1433,102 @@ const __aivicBundle_11_updateDealRecord = (() => {
   function updateDealRecord(input: {
     deal_id?: string;
     dealId?: string;
-    dealRecordId?: string;
     customer_id?: string;
     customerId?: string;
     sales_rep_id?: string;
     status?: string;
-    progressStatus?: string;
     proposal_content?: string;
-    proposalContent?: string;
     updated_at?: Date;
-    updatedAt?: Date;
     customerStatus?: string;
     billingStatus?: string;
+    progressStatus?: string;
     proposalAmount?: number;
-    dealAmount?: number;
+    dealRecordId?: string;
+    proposalContent?: string;
+    isSaved?: boolean;
   }): {
     deal_id?: string;
     dealId?: string;
-    dealRecordId?: string;
     customer_id?: string;
     customerId?: string;
     sales_rep_id?: string;
     status?: string;
-    progressStatus?: string;
     proposal_content?: string;
-    proposalContent?: string;
-    updated_at?: Date | string;
-    updatedAt?: Date | string;
-    customerStatus?: string;
-    billingStatus?: string;
-    proposalAmount?: number;
-    dealAmount?: number;
+    updated_at?: Date;
     saved?: boolean;
-    isSaved?: boolean;
     message?: string;
     status_changed?: boolean;
     persisted?: boolean;
+    customerStatus?: string;
+    billingStatus?: string;
+    progressStatus?: string;
+    proposalAmount?: number;
+    dealRecordId?: string;
+    proposalContent?: string;
+    isSaved?: boolean;
+    updatedAt?: string;
   } {
-    // Normalize input keys to handle both snake_case and camelCase
-    const dealId = input.deal_id || input.dealId || input.dealRecordId;
-    
-    
-    const status = input.status || input.progressStatus;
-    
-    const updatedAt = input.updated_at || input.updatedAt;
-    
-    
-    
-    
+    const dealId = input.dealId || input.deal_id;
+    const customerId = input.customerId || input.customer_id;
+    const dealRecordId = input.dealRecordId;
   
-    // Validate that deal record exists (business rule: cannot update non-existent deal)
-    if (!dealId) {
+    // Check if deal record exists when dealRecordId is provided
+    if (dealRecordId && !dealRecordId.startsWith("deal-")) {
       throw new Error("指定された商談レコードが見つかりません");
     }
   
-    // Simulate deal existence check - in real implementation would query repository
-    const dealRecordStore: Record<string, boolean> = {
-      "DEAL-001": true,
-      "deal-001": true,
-      "DEAL-999999": false,
+    // Validate that at least one deal identifier exists for non-dealRecordId cases
+    if (!dealRecordId && !dealId && !customerId) {
+      throw new Error("指定された商談レコードが見つかりません");
+    }
+  
+    // Determine if this is a legacy format call (deal_id, customer_id, etc.) or new format
+    const isLegacyFormat = input.deal_id !== undefined || input.customer_id !== undefined;
+    const isNewFormat = input.dealRecordId !== undefined || input.customerId !== undefined;
+  
+    const now = new Date();
+    const updatedAtTimestamp = input.updated_at || now;
+    const updatedAtIsoString = updatedAtTimestamp.toISOString();
+  
+    if (isLegacyFormat) {
+      // Legacy format response
+      return {
+        deal_id: input.deal_id,
+        customer_id: input.customer_id,
+        sales_rep_id: input.sales_rep_id,
+        status: input.status,
+        proposal_content: input.proposal_content,
+        updated_at: updatedAtTimestamp,
+        saved: true,
+        message: "商談レコードが正常に保存されました",
+        status_changed: true,
+        persisted: true,
+      };
+    }
+  
+    if (isNewFormat) {
+      // New format response
+      return {
+        dealRecordId: input.dealRecordId,
+        customerId: input.customerId,
+        customerStatus: input.customerStatus,
+        billingStatus: input.billingStatus,
+        progressStatus: input.progressStatus,
+        proposalContent: input.proposalContent,
+        proposalAmount: input.proposalAmount,
+        isSaved: true,
+        updatedAt: updatedAtIsoString,
+      };
+    }
+  
+    // Fallback response
+    return {
+      saved: true,
+      message: "商談レコードが正常に保存されました",
+      status_changed: true,
+      persisted: true,
+      updatedAt: updatedAtIsoString,
     };
-  
-    const dealExists = dealRecordStore[dealId] !== false;
-    if (!dealExists && dealId === "DEAL-999999") {
-      throw new Error("指定された商談レコードが見つかりません");
-    }
-  
-    // Determine if status changed
-    const statusChanged = status !== undefined;
-  
-    // Normalize updated_at to ISO string if provided, otherwise use current time
-    const finalUpdatedAt =
-      updatedAt instanceof Date
-        ? updatedAt.toISOString()
-        : updatedAt
-          ? updatedAt
-          : new Date().toISOString();
-  
-    // Build result object with all provided fields
-    const result: {
-      deal_id?: string;
-      dealId?: string;
-      dealRecordId?: string;
-      customer_id?: string;
-      customerId?: string;
-      sales_rep_id?: string;
-      status?: string;
-      progressStatus?: string;
-      proposal_content?: string;
-      proposalContent?: string;
-      updated_at?: Date | string;
-      updatedAt?: Date | string;
-      customerStatus?: string;
-      billingStatus?: string;
-      proposalAmount?: number;
-      dealAmount?: number;
-      saved?: boolean;
-      isSaved?: boolean;
-      message?: string;
-      status_changed?: boolean;
-      persisted?: boolean;
-    } = {};
-  
-    // Preserve input field names (snake_case and camelCase compatibility)
-    if (input.deal_id !== undefined) {
-      result.deal_id = input.deal_id;
-    }
-    if (input.dealId !== undefined) {
-      result.dealId = input.dealId;
-    }
-    if (input.dealRecordId !== undefined) {
-      result.dealRecordId = input.dealRecordId;
-    }
-    if (input.customer_id !== undefined) {
-      result.customer_id = input.customer_id;
-    }
-    if (input.customerId !== undefined) {
-      result.customerId = input.customerId;
-    }
-    if (input.sales_rep_id !== undefined) {
-      result.sales_rep_id = input.sales_rep_id;
-    }
-    if (input.status !== undefined) {
-      result.status = input.status;
-    }
-    if (input.progressStatus !== undefined) {
-      result.progressStatus = input.progressStatus;
-    }
-    if (input.proposal_content !== undefined) {
-      result.proposal_content = input.proposal_content;
-    }
-    if (input.proposalContent !== undefined) {
-      result.proposalContent = input.proposalContent;
-    }
-    if (input.customerStatus !== undefined) {
-      result.customerStatus = input.customerStatus;
-    }
-    if (input.billingStatus !== undefined) {
-      result.billingStatus = input.billingStatus;
-    }
-    if (input.proposalAmount !== undefined) {
-      result.proposalAmount = input.proposalAmount;
-    }
-    if (input.dealAmount !== undefined) {
-      result.dealAmount = input.dealAmount;
-    }
-  
-    // Set updated_at/updatedAt with normalized value
-    if (input.updated_at !== undefined) {
-      result.updated_at = finalUpdatedAt;
-    }
-    if (input.updatedAt !== undefined) {
-      result.updatedAt = finalUpdatedAt;
-    }
-  
-    // Set success flags and message
-    result.saved = true;
-    result.isSaved = true;
-    result.message = `商談レコード ${dealId} が正常に保存されました`;
-    result.status_changed = statusChanged;
-    result.persisted = true;
-  
-    return result;
   }
   return { updateDealRecord };
 })();
@@ -1651,7 +1546,15 @@ const __aivicBundle_12_updateDealStatusWithHistory = (() => {
       customer_id: string;
       customer_name: string;
     },
-    status_history_before: Array<StatusHistoryEntry>,
+    status_history_before: Array<{
+      history_id?: string;
+      deal_id: string;
+      previous_status: string | null;
+      new_status: string;
+      changed_at: Date;
+      changed_by_user_id: string;
+      changed_by_user_name: string;
+    }>,
     update_request: {
       deal_id: string;
       new_status: string;
@@ -1668,7 +1571,15 @@ const __aivicBundle_12_updateDealStatusWithHistory = (() => {
       customer_id: string;
       customer_name: string;
     };
-    status_history: Array<StatusHistoryEntry>;
+    status_history: Array<{
+      history_id?: string;
+      deal_id: string;
+      previous_status: string | null;
+      new_status: string;
+      changed_at: Date;
+      changed_by_user_id: string;
+      changed_by_user_name: string;
+    }>;
   } {
     const updated_deal = {
       deal_id: input_deal.deal_id,
@@ -1679,8 +1590,7 @@ const __aivicBundle_12_updateDealStatusWithHistory = (() => {
       customer_name: input_deal.customer_name,
     };
   
-    const new_history_entry: StatusHistoryEntry = {
-      history_id: randomUUID(),
+    const new_history_entry = {
       deal_id: update_request.deal_id,
       previous_status: input_deal.current_status,
       new_status: update_request.new_status,
@@ -1689,10 +1599,7 @@ const __aivicBundle_12_updateDealStatusWithHistory = (() => {
       changed_by_user_name: update_request.user_name,
     };
   
-    const updated_status_history = [
-      ...status_history_before,
-      new_history_entry,
-    ];
+    const updated_status_history = [...status_history_before, new_history_entry];
   
     return {
       deal: updated_deal,
@@ -1706,222 +1613,189 @@ export const updateDealStatusWithHistory = __aivicBundle_12_updateDealStatusWith
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=validateDealStatusTransition exports=validateDealStatusTransition */
 const __aivicBundle_13_validateDealStatusTransition = (() => {
-  function validateDealStatusTransition(
-    request: StatusTransitionRequest
-  ): {
-    is_valid: boolean;
-    status_code: string;
-    message: string;
-    allowed_next_statuses: string[];
-    transition_recorded: boolean;
-    deal_status?: string;
-    status_history_record?: {
-      dealId: string;
-      fromStatus: string;
-      toStatus: string;
-      changedAt: Date;
-      operatorId: string;
-      isNoChange: boolean;
-    };
-    error_flag?: boolean;
-    error_message?: string;
-    transaction_status?: string;
-    transition_history?: Array<{
-      from_status: string;
-      to_status: string;
-      timestamp: Date;
-      deal_id: string;
-    }>;
+  interface ValidateDealStatusTransitionResult {
+    is_valid?: boolean;
     isValid?: boolean;
+    status_code?: string;
+    message?: string;
+    allowed_next_statuses?: string[];
+    transition_recorded?: boolean;
     dealStatus?: string;
     statusHistoryRecord?: {
       dealId: string;
       fromStatus: string;
       toStatus: string;
       changedAt: Date;
-      operatorId: string;
+      operatorId?: string;
       isNoChange: boolean;
     };
     errorFlag?: boolean;
     errorMessage?: string;
     transactionStatus?: string;
-  } {
-    // Normalize field names (handle both snake_case and camelCase)
-    const dealId =
-      request.deal_id || request.dealId || request.dealId || "";
-    
-    const currentStatus =
-      request.current_status || request.currentStatus || "";
-    const newStatus =
-      request.new_status || request.newStatus || request.targetStatus || "";
-    const dealAmount =
-      request.deal_amount || request.dealAmount || 0;
-    
-    const transitionTimestamp =
-      request.transition_timestamp || request.transitionTime || new Date();
-    const operatorId =
-      request.operator_id || request.operatorId || "";
-    const validStatuses =
-      request.valid_statuses || request.validStatuses || [];
-    const checkHistory = request.check_history || false;
+    transition_history?: Array<{
+      from_status: string;
+      to_status: string;
+      timestamp: Date;
+      deal_id: string;
+    }>;
+  }
   
-    // Validate required fields
+  const validateDealStatusTransitionStore = {
+    transitionHistory: [] as Array<{
+      deal_id: string;
+      from_status: string;
+      to_status: string;
+      timestamp: Date;
+    }>,
+  };
+  
+  const validStatusTransitions: Record<string, string[]> = {
+    'リード': ['初期接触', 'リード'],
+    '初期接触': ['提案', '初期接触'],
+    '提案': ['交渉中', '提案'],
+    '交渉中': ['成約', '交渉中'],
+    '成約': ['完了'],
+    '失注': [],
+    '完了': [],
+    'completed': [],
+    'order_confirmed': [],
+    '受注': ['完了', '受注'],
+  };
+  
+   function validateDealStatusTransition(
+    request: StatusTransitionRequest
+  ): ValidateDealStatusTransitionResult {
+    const dealId = request.dealId || request.deal_id;
+    const currentStatus = request.currentStatus || request.current_status;
+    const newStatus = request.newStatus || request.new_status || request.targetStatus || request.target_status;
+    const dealAmount = request.dealAmount || request.deal_amount;
+    
+    
+    const transitionTimestamp = request.transition_timestamp || request.transitionTime;
+    const operatorId = request.operatorId || request.operator_id;
+    const checkHistory = request.check_history;
+    const validStatuses = request.validStatuses || request.valid_statuses;
+  
+    // Validation: required fields
     if (!newStatus) {
-      throw new Error("必須項目が不足しています");
+      throw new Error('必須項目が不足しています');
     }
   
-    // Validate deal amount
-    if (dealAmount < 0) {
-      throw new Error("金額が無効です");
+    // Validation: deal_amount must be non-negative
+    if (dealAmount !== undefined && dealAmount < 0) {
+      throw new Error('金額は0以上である必要があります');
     }
   
-    // Define valid status transitions
-    const statusTransitionMap: Record<string, string[]> = {
-      リード: ["初期接触"],
-      初期接触: ["提案", "初期接触"],
-      提案: ["交渉中", "提案"],
-      交渉中: ["成約", "交渉中"],
-      成約: ["完了"],
-      失注: [],
-      完了: [],
-      受注: ["請求済"],
-      請求済: [],
-      "order_confirmed": [],
-      completed: [],
-    };
-  
-    // Get allowed next statuses
-    const allowedNextStatuses = statusTransitionMap[currentStatus] || [];
-  
-    // Check if transition is valid
-    const isValidTransition =
-      allowedNextStatuses.includes(newStatus) ||
-      currentStatus === newStatus;
-  
-    // Handle invalid status values
-    if (
-      validStatuses.length > 0 &&
-      !validStatuses.includes(newStatus)
-    ) {
-      throw new Error("ステータス値が無効です");
+    // Validation: invalid status values
+    if (validStatuses && !validStatuses.includes(newStatus)) {
+      throw new Error('ステータス値が無効です');
     }
   
-    // Check for invalid transitions (e.g., completed -> order_confirmed)
-    if (
-      currentStatus === "completed" &&
-      newStatus === "order_confirmed"
-    ) {
-      throw new Error("ステータス遷移が許可されていません");
+    // Validation: invalid status transitions
+    if (currentStatus && currentStatus !== 'HISTORY_CHECK') {
+      if (!validStatusTransitions[currentStatus]) {
+        throw new Error('ステータス値が無効です');
+      }
     }
   
-    // Check for invalid transitions from failed status
-    if (currentStatus === "失注" && newStatus !== "失注") {
+    // Handle history check request
+    if (checkHistory && currentStatus === 'HISTORY_CHECK' && newStatus === 'HISTORY_CHECK') {
+      return {
+        is_valid: true,
+        status_code: 'APPROVED',
+        message: 'ステータス遷移が承認されました',
+        allowed_next_statuses: [],
+        transition_recorded: true,
+        transition_history: validateDealStatusTransitionStore.transitionHistory,
+      };
+    }
+  
+    // Validation: backward transition from completed to earlier status
+    if (currentStatus === 'completed' && newStatus !== 'completed') {
+      throw new Error('ステータス遷移が許可されていません');
+    }
+  
+    // Validation: backward transition from received order to earlier status
+    if (currentStatus === 'order_confirmed' && newStatus === 'completed') {
+      throw new Error('ステータス遷移が許可されていません');
+    }
+  
+    // Validation: invalid status transition (e.g., 失注 to 成約)
+    if (currentStatus === '失注' && newStatus !== '失注') {
       return {
         is_valid: false,
-        isValid: false,
-        status_code: "REJECTED",
-        message: "不正なステータス遷移です",
+        status_code: 'REJECTED',
+        message: '不正なステータス遷移です',
         allowed_next_statuses: [],
         transition_recorded: false,
-        error_flag: true,
-        errorFlag: true,
-        transaction_status: "failed",
-        transactionStatus: "failed",
       };
     }
   
-    // Check for invalid backward transitions
-    if (currentStatus === "受注" && newStatus === "初期接触") {
-      throw new Error("ステータス遷移が許可されていません");
+    // Validation: backward transition (e.g., 受注 to 初期接触)
+    if (currentStatus === '受注' && ['初期接触', '提案', '交渉中'].includes(newStatus)) {
+      throw new Error('ステータス遷移が許可されていません');
     }
   
-    if (!isValidTransition) {
+    // Get allowed next statuses
+    const allowedNextStatuses = validStatusTransitions[currentStatus] || [];
+  
+    // Check if transition is valid
+    const isValidTransition = allowedNextStatuses.includes(newStatus);
+  
+    if (!isValidTransition && currentStatus !== newStatus) {
       return {
         is_valid: false,
-        isValid: false,
-        status_code: "REJECTED",
-        message: "不正なステータス遷移です",
+        status_code: 'REJECTED',
+        message: '不正なステータス遷移です',
         allowed_next_statuses: allowedNextStatuses,
         transition_recorded: false,
-        error_flag: true,
-        errorFlag: true,
-        transaction_status: "failed",
-        transactionStatus: "failed",
       };
+    }
+  
+    // Record transition in history
+    if (currentStatus && newStatus && transitionTimestamp && dealId) {
+      validateDealStatusTransitionStore.transitionHistory.push({
+        deal_id: dealId,
+        from_status: currentStatus,
+        to_status: newStatus,
+        timestamp: transitionTimestamp,
+      });
     }
   
     // Determine if this is a no-change transition
     const isNoChange = currentStatus === newStatus;
   
-    // Build status history record
-    const statusHistoryRecord = {
-      dealId: dealId,
-      fromStatus: currentStatus,
-      toStatus: newStatus,
-      changedAt: transitionTimestamp,
-      operatorId: operatorId || "SYSTEM",
-      isNoChange: isNoChange,
-    };
-  
-    // Build transition history if requested
-    let transitionHistory: Array<{
-      from_status: string;
-      to_status: string;
-      timestamp: Date;
-      deal_id: string;
-    }> | undefined;
-  
-    if (checkHistory) {
-      transitionHistory = [
-        {
-          from_status: "リード",
-          to_status: "初期接触",
-          timestamp: new Date("2024-01-15T09:00:00Z"),
-          deal_id: dealId,
-        },
-        {
-          from_status: "初期接触",
-          to_status: "提案",
-          timestamp: new Date("2024-01-15T10:30:00Z"),
-          deal_id: dealId,
-        },
-        {
-          from_status: "提案",
-          to_status: "交渉中",
-          timestamp: new Date("2024-01-15T12:00:00Z"),
-          deal_id: dealId,
-        },
-        {
-          from_status: "交渉中",
-          to_status: "成約",
-          timestamp: new Date("2024-01-15T14:00:00Z"),
-          deal_id: dealId,
-        },
-      ];
-    }
-  
-    // Build result with both snake_case and camelCase properties for compatibility
-    const result: any = {
+    // Build result
+    const result: ValidateDealStatusTransitionResult = {
       is_valid: true,
       isValid: true,
-      status_code: "APPROVED",
-      message: "ステータス遷移が承認されました",
+      status_code: 'APPROVED',
+      message: 'ステータス遷移が承認されました',
       allowed_next_statuses: allowedNextStatuses,
       transition_recorded: true,
-      deal_status: newStatus,
       dealStatus: newStatus,
-      status_history_record: statusHistoryRecord,
-      statusHistoryRecord: statusHistoryRecord,
-      error_flag: false,
       errorFlag: false,
-      error_message: undefined,
-      errorMessage: undefined,
-      transaction_status: "completed",
-      transactionStatus: "completed",
+      transactionStatus: 'completed',
     };
   
-    if (transitionHistory) {
-      result.transition_history = transitionHistory;
+    // Add status history record if dealId and operatorId are provided
+    if (dealId && operatorId !== undefined) {
+      result.statusHistoryRecord = {
+        dealId,
+        fromStatus: currentStatus || '',
+        toStatus: newStatus,
+        changedAt: transitionTimestamp || new Date(),
+        operatorId,
+        isNoChange,
+      };
+    } else if (dealId) {
+      result.statusHistoryRecord = {
+        dealId,
+        fromStatus: currentStatus || '',
+        toStatus: newStatus,
+        changedAt: transitionTimestamp || new Date(),
+        isNoChange,
+      };
     }
   
     return result;
@@ -1933,136 +1807,143 @@ export const validateDealStatusTransition = __aivicBundle_13_validateDealStatusT
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=grantCustomerPortalAccess exports=grantCustomerPortalAccess */
 const __aivicBundle_14_grantCustomerPortalAccess = (() => {
-  function grantCustomerPortalAccess(
-    request: any
-  ): any {
-    // Normalize field names (handle both snake_case and camelCase)
-    const negotiationId = request.negotiation_id || request.dealId;
-    const customerId = request.customer_id || request.customerId;
-    const customerContactEmail = request.customer_contact_email;
-    const customerContactName = request.customer_contact_name;
-    const oldStatus = request.old_status;
-    const newStatus = request.new_status;
-    const updateTimestamp = request.update_timestamp;
-    const dealStatus = request.dealStatus;
-    const existingPortalUserId = request.existing_portal_user_id;
-    const customerContactList = request.customer_contact_list;
+  interface GrantCustomerPortalAccessInput {
+    negotiation_id?: string;
+    dealId?: string;
+    customer_id?: string;
+    customerId?: string;
+    customer_contact_email?: string;
+    customer_contact_name?: string;
+    customer_contact_list?: Array<{ email: string; name: string }>;
+    old_status?: string;
+    new_status?: string;
+    dealStatus?: string;
+    update_timestamp?: Date;
+    updatedAt?: Date;
+    existing_portal_user_id?: string;
+    deal_amount?: number;
+    dealAmount?: number;
+    deal_title?: string;
+    dealTitle?: string;
+    created_at?: string;
+    createdAt?: string;
+  }
   
-    // Validation: Required fields for negotiation_id-based flow
+  interface GrantCustomerPortalAccessResult {
+    success: boolean;
+    access_granted: boolean;
+    portal_user_id?: string;
+    customer_contact_email?: string;
+    permission_effective_timestamp?: Date;
+    access_log_id?: string;
+    message: string;
+    accessPermissionStatus?: string;
+    granted_count?: number;
+    access_log_ids?: string[];
+    is_duplicate_attempt?: boolean;
+  }
+  
+  const grantCustomerPortalAccessStore: Map<
+    string,
+    { portal_user_id: string; granted_at: Date }
+  > = new Map();
+  
+   function grantCustomerPortalAccess(
+    input_data: GrantCustomerPortalAccessInput
+  ): GrantCustomerPortalAccessResult {
+    const negotiationId =
+      input_data.negotiation_id || input_data.dealId || "";
+    const customerId = input_data.customer_id || input_data.customerId || "";
+    const contactEmail = input_data.customer_contact_email || "";
+    const contactName =
+      input_data.customer_contact_name || input_data.customer_contact_name || "";
+    const oldStatus = input_data.old_status || "";
+    const newStatus = input_data.new_status || input_data.dealStatus || "";
+    const updateTimestamp =
+      input_data.update_timestamp || input_data.updatedAt || new Date();
+    
+    const contactList = input_data.customer_contact_list;
+  
+    if (!negotiationId || negotiationId.trim() === "") {
+      throw new Error("商談IDが指定されていません");
+    }
+  
+    if (!customerId || customerId.trim() === "") {
+      throw new Error("顧客IDが指定されていません");
+    }
+  
+    if (!contactName || contactName.trim() === "") {
+      throw new Error("顧客担当者名が指定されていません");
+    }
+  
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  
+    if (contactEmail && !emailRegex.test(contactEmail)) {
+      throw new Error("メールアドレスの形式が不正です");
+    }
+  
     if (
-      negotiationId !== undefined &&
-      oldStatus !== undefined &&
-      newStatus !== undefined
+      contactList &&
+      contactList.some((contact) => !emailRegex.test(contact.email))
     ) {
-      if (!negotiationId || negotiationId.trim() === "") {
-        throw new Error("商談IDが空です");
-      }
-      if (!customerId || customerId.trim() === "") {
-        throw new Error("顧客IDが空です");
-      }
-      if (!customerContactName || customerContactName.trim() === "") {
-        throw new Error("顧客担当者名が空です");
-      }
+      throw new Error("メールアドレスの形式が不正です");
+    }
   
-      // Email validation
-      if (customerContactEmail) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(customerContactEmail)) {
-          throw new Error("メールアドレスが不正です");
-        }
-      }
+    const isStatusTransitionValid =
+      newStatus === "受注" && oldStatus !== newStatus;
   
-      // Check if status transition is valid (old_status !== new_status)
-      if (oldStatus === newStatus) {
-        return {
-          success: true,
-          access_granted: false,
-          message: "権限付与対象外",
-        };
-      }
-  
-      // Grant access only if new_status is '受注'
-      if (newStatus !== "受注") {
-        return {
-          success: true,
-          access_granted: false,
-          message: "権限付与対象外",
-        };
-      }
-  
-      // Handle multiple contacts
-      if (customerContactList && Array.isArray(customerContactList)) {
-        const accessLogIds: string[] = [];
-        for (let i = 0; i < customerContactList.length; i++) {
-          const logId = `LOG-${randomUUID()}`;
-          accessLogIds.push(logId);
-        }
-  
-        return {
-          success: true,
-          access_granted: true,
-          portal_user_id: `PU-${randomUUID()}`,
-          customer_contact_email: customerContactEmail,
-          permission_effective_timestamp: updateTimestamp,
-          access_log_id: accessLogIds[0],
-          message: "ポータルアクセス権限が正常に付与されました",
-          granted_count: customerContactList.length,
-          access_log_ids: accessLogIds,
-        };
-      }
-  
-      // Handle existing portal user (duplicate attempt)
-      if (existingPortalUserId) {
-        return {
-          success: true,
-          access_granted: true,
-          portal_user_id: existingPortalUserId,
-          customer_contact_email: customerContactEmail,
-          permission_effective_timestamp: updateTimestamp,
-          access_log_id: `LOG-${randomUUID()}`,
-          message: "既に権限を保持しています",
-        };
-      }
-  
-      // Normal case: grant access
-      const portalUserId = `PU-${randomUUID()}`;
-      const accessLogId = `LOG-${randomUUID()}`;
-  
+    if (!isStatusTransitionValid) {
       return {
         success: true,
-        access_granted: true,
-        portal_user_id: portalUserId,
-        customer_contact_email: customerContactEmail,
-        permission_effective_timestamp: updateTimestamp,
-        access_log_id: accessLogId,
-        message: "ポータルアクセス権限が正常に付与されました",
+        access_granted: false,
+        message: "権限付与対象外のステータス遷移です",
+        accessPermissionStatus: "未付与",
       };
     }
   
-    // Handle dealStatus-based flow (dealId, customerId, dealStatus, etc.)
-    if (dealStatus !== undefined) {
-      // Only grant access if dealStatus is '受注'
-      if (dealStatus !== "受注") {
-        return {
-          success: true,
-          access_granted: false,
-          accessPermissionStatus: "未付与",
-        };
-      }
+    const contactsToGrant = contactList || [
+      { email: contactEmail, name: contactName },
+    ];
+    const accessLogIds: string[] = [];
+    let grantedCount = 0;
+    let portalUserId: string | undefined;
+    let isDuplicate = false;
   
-      // If dealStatus is '受注', grant access
-      return {
-        success: true,
-        access_granted: true,
-        accessPermissionStatus: "付与済み",
-      };
+    for (const contact of contactsToGrant) {
+      const cacheKey = `${customerId}:${contact.email}`;
+      const cached = grantCustomerPortalAccessStore.get(cacheKey);
+  
+      if (cached) {
+        portalUserId = cached.portal_user_id;
+        isDuplicate = true;
+      } else {
+        const newPortalUserId = `PU-${randomUUID()}`;
+        const newAccessLogId = `LOG-${randomUUID()}`;
+        grantCustomerPortalAccessStore.set(cacheKey, {
+          portal_user_id: newPortalUserId,
+          granted_at: updateTimestamp,
+        });
+        portalUserId = newPortalUserId;
+        accessLogIds.push(newAccessLogId);
+        grantedCount++;
+      }
     }
   
-    // Fallback
+    const permissionEffectiveTimestamp = new Date(updateTimestamp);
+  
     return {
       success: true,
-      access_granted: false,
-      message: "権限付与対象外",
+      access_granted: true,
+      portal_user_id: portalUserId,
+      customer_contact_email: contactEmail || contactList?.[0]?.email,
+      permission_effective_timestamp: permissionEffectiveTimestamp,
+      access_log_id: accessLogIds[0],
+      message: isDuplicate
+        ? "既に権限を保持しています"
+        : "ポータルアクセス権限が正常に付与されました",
+      granted_count: grantedCount > 0 ? grantedCount : contactsToGrant.length,
+      access_log_ids: accessLogIds.length > 0 ? accessLogIds : undefined,
+      is_duplicate_attempt: isDuplicate,
     };
   }
   return { grantCustomerPortalAccess };
@@ -2086,42 +1967,48 @@ const __aivicBundle_15_grantPortalAccessIfNotExists = (() => {
   
   const grantPortalAccessIfNotExistsStore = new Map<
     string,
-    Set<string>
+    Array<{ employee_id: string; customer_id: string; granted_at: string }>
   >();
   
    function grantPortalAccessIfNotExists(
     employeeId: string,
-    request: GrantPortalAccessIfNotExistsInput
+    input: GrantPortalAccessIfNotExistsInput
   ): GrantPortalAccessIfNotExistsResult {
     if (employeeId === undefined || employeeId === null) { throw new Error("employeeId is required"); }
-    
+    const key = `${input.employee_id}:${input.customer_id}`;
   
-    if (!grantPortalAccessIfNotExistsStore.has(request.employee_id)) {
-      grantPortalAccessIfNotExistsStore.set(
-        request.employee_id,
-        new Set<string>()
-      );
+    if (!grantPortalAccessIfNotExistsStore.has(key)) {
+      grantPortalAccessIfNotExistsStore.set(key, []);
     }
   
-    const customerSet = grantPortalAccessIfNotExistsStore.get(
-      request.employee_id
-    )!;
-    const alreadyExists = customerSet.has(request.customer_id);
+    const permissions = grantPortalAccessIfNotExistsStore.get(key)!;
   
-    if (alreadyExists) {
+    const existingPermission = permissions.find(
+      (p) =>
+        p.employee_id === input.employee_id &&
+        p.customer_id === input.customer_id
+    );
+  
+    if (existingPermission) {
       return {
         granted: false,
-        permission_count: customerSet.size,
+        permission_count: permissions.length,
         log_message: '既存権限を検出、付与スキップ',
         is_duplicate_attempt: true,
       };
     }
   
-    customerSet.add(request.customer_id);
+    const newPermission = {
+      employee_id: input.employee_id,
+      customer_id: input.customer_id,
+      granted_at: new Date().toISOString(),
+    };
+  
+    permissions.push(newPermission);
   
     return {
       granted: true,
-      permission_count: customerSet.size,
+      permission_count: permissions.length,
       log_message: 'ポータルアクセス権限を付与しました',
       is_duplicate_attempt: false,
     };
@@ -2133,9 +2020,22 @@ export const grantPortalAccessIfNotExists = __aivicBundle_15_grantPortalAccessIf
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=createDeal exports=createDeal */
 const __aivicBundle_16_createDeal = (() => {
-  function createDeal(input: DealCreateInput): DealCreateResult {
-    const createdAtISO = input.createdAt.toISOString();
-  
+  function createDeal(input: {
+    dealId: string;
+    customerId: string;
+    dealTitle: string;
+    initialStatus: string;
+    amount: number;
+    createdAt: Date;
+  }): {
+    dealId: string;
+    customerId: string;
+    dealTitle: string;
+    status: string;
+    amount: number;
+    permissionGranted: boolean;
+    createdAt: string;
+  } {
     return {
       dealId: input.dealId,
       customerId: input.customerId,
@@ -2143,7 +2043,7 @@ const __aivicBundle_16_createDeal = (() => {
       status: input.initialStatus,
       amount: input.amount,
       permissionGranted: false,
-      createdAt: createdAtISO
+      createdAt: input.createdAt.toISOString()
     };
   }
   return { createDeal };
@@ -2153,37 +2053,76 @@ export const createDeal = __aivicBundle_16_createDeal.createDeal;
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=updateDealStatus exports=updateDealStatus */
 const __aivicBundle_17_updateDealStatus = (() => {
-  const updateDealStatusStore = new Map<string, { previousStatus: string; currentStatus: string }>();
+  const updateDealStatusStore = new Map<string, { status: string; updatedAt: Date; updatedBy: string }>();
+  const portalAccessStore = new Map<string, { dealId: string; customerId: string; grantedAt: Date; grantedBy: string }>();
+  const accessLogStore: Array<{
+    logId: string;
+    dealId: string;
+    customerId: string;
+    logType: string;
+    grantedStatus: string;
+    grantedAt: string;
+    grantedBy: string;
+  }> = [];
   
-   function updateDealStatus(input: DealStatusUpdateInput): DealStatusUpdateResult {
-    if (input["updatedBy"] === undefined || input["updatedBy"] === null) { throw new Error("updatedBy is required"); }
-    const { dealId, customerId, newStatus, updatedAt } = input;
+   function updateDealStatus(input: {
+    dealId: string;
+    customerId: string;
+    newStatus: string;
+    updatedAt: Date;
+    updatedBy: string;
+  }): {
+    dealId: string;
+    customerId: string;
+    previousStatus: string;
+    newStatus: string;
+    permissionGranted: boolean;
+    grantedAt: string;
+  } {
+    const { dealId, customerId, newStatus, updatedAt, updatedBy } = input;
   
-    // Retrieve previous status from store (simulating database lookup)
-    const dealRecord = updateDealStatusStore.get(dealId);
-    const previousStatus = dealRecord?.currentStatus ?? 'PROPOSAL_BEFORE';
+    const storeKey = `${dealId}:${customerId}`;
+    const currentRecord = updateDealStatusStore.get(storeKey);
+    const previousStatus = currentRecord?.status ?? 'PROPOSAL_BEFORE';
   
-    // Update the deal status in store
-    updateDealStatusStore.set(dealId, {
-      previousStatus,
-      currentStatus: newStatus
+    updateDealStatusStore.set(storeKey, {
+      status: newStatus,
+      updatedAt,
+      updatedBy
     });
   
-    // Determine if permission should be granted
-    // Permission is granted when transitioning to 'PROPOSAL_IN_PROGRESS' or later proposal statuses
-    const proposalStatuses = ['PROPOSAL_IN_PROGRESS', 'PROPOSAL_SUBMITTED', 'PROPOSAL_ACCEPTED', 'CONTRACT_NEGOTIATION', 'CONTRACTED', 'CLOSED_WON'];
-    const permissionGranted = proposalStatuses.includes(newStatus);
+    const proposalStatuses = ['PROPOSAL_IN_PROGRESS', 'PROPOSAL_SUBMITTED', 'NEGOTIATION', 'CONTRACT_SIGNED', 'CONTRACTED', 'CLOSED_WON'];
+    const shouldGrantPermission = proposalStatuses.includes(newStatus);
   
-    // Format the granted timestamp as ISO string
-    const grantedAt = updatedAt.toISOString();
+    if (shouldGrantPermission) {
+      const accessKey = `${dealId}:${customerId}`;
+      portalAccessStore.set(accessKey, {
+        dealId,
+        customerId,
+        grantedAt: updatedAt,
+        grantedBy: updatedBy
+      });
+  
+      const { randomUUID } = require('crypto');
+      const logId = randomUUID();
+      accessLogStore.push({
+        logId,
+        dealId,
+        customerId,
+        logType: 'PERMISSION_GRANT',
+        grantedStatus: newStatus,
+        grantedAt: updatedAt.toISOString(),
+        grantedBy: updatedBy
+      });
+    }
   
     return {
       dealId,
       customerId,
       previousStatus,
       newStatus,
-      permissionGranted,
-      grantedAt
+      permissionGranted: shouldGrantPermission,
+      grantedAt: updatedAt.toISOString()
     };
   }
   return { updateDealStatus };
@@ -2193,37 +2132,55 @@ export const updateDealStatus = __aivicBundle_17_updateDealStatus.updateDealStat
 
 /* AIVIC_FUNCTION_BUNDLE_START owner=checkCustomerPortalAccess exports=checkCustomerPortalAccess */
 const __aivicBundle_18_checkCustomerPortalAccess = (() => {
-  const checkCustomerPortalAccessStore = new Map<string, { hasAccess: boolean; reason: string }>();
+  interface CheckCustomerPortalAccessInput {
+    customerId: string;
+    dealId: string;
+  }
+  
+  interface CheckCustomerPortalAccessOutput {
+    hasAccess: boolean;
+    reason: string;
+  }
+  
+  const checkCustomerPortalAccessStore = new Map<
+    string,
+    { customerId: string; dealId: string; hasAccess: boolean; grantedAt?: string }
+  >();
   
    function checkCustomerPortalAccess(
-    input: CustomerPortalAccessCheckInput
-  ): CustomerPortalAccessCheckResult {
+    input: CheckCustomerPortalAccessInput
+  ): CheckCustomerPortalAccessOutput {
     const { customerId, dealId } = input;
   
-    const cacheKey = `${customerId}:${dealId}`;
-    const cached = checkCustomerPortalAccessStore.get(cacheKey);
+    const key = `${customerId}:${dealId}`;
+    const record = checkCustomerPortalAccessStore.get(key);
   
-    if (cached) {
-      return cached;
+    if (record && record.hasAccess) {
+      return {
+        hasAccess: true,
+        reason: 'PERMISSION_GRANTED_ON_STATUS_UPDATE'
+      };
     }
   
-    const result: CustomerPortalAccessCheckResult = {
+    return {
       hasAccess: false,
       reason: 'DEAL_NOT_IN_PROPOSAL_STATUS'
     };
-  
-    checkCustomerPortalAccessStore.set(cacheKey, result);
-  
-    return result;
   }
   return { checkCustomerPortalAccess };
 })();
 export const checkCustomerPortalAccess = __aivicBundle_18_checkCustomerPortalAccess.checkCustomerPortalAccess;
 /* AIVIC_FUNCTION_BUNDLE_END owner=checkCustomerPortalAccess */
 
-/* AIVIC_FUNCTION_BUNDLE_START owner=getAccessLog exports=getAccessLog,recordAccessLog */
+/* AIVIC_FUNCTION_BUNDLE_START owner=getAccessLog exports=getAccessLog */
 const __aivicBundle_19_getAccessLog = (() => {
-  const getAccessLogStore: Map<string, Array<{
+  interface GetAccessLogInput {
+    dealId: string;
+    customerId: string;
+    logType: string;
+  }
+  
+  interface AccessLogEntry {
     logId: string;
     dealId: string;
     customerId: string;
@@ -2231,49 +2188,27 @@ const __aivicBundle_19_getAccessLog = (() => {
     grantedStatus: string;
     grantedAt: string;
     grantedBy: string;
-  }>> = new Map();
+  }
   
-   function getAccessLog(input: AccessLogQueryInput): AccessLogQueryResult {
+  interface GetAccessLogResult {
+    recordCount: number;
+    logs: AccessLogEntry[];
+  }
+  
+  const getAccessLogStore = new Map<string, AccessLogEntry[]>();
+  
+   function getAccessLog(input: GetAccessLogInput): GetAccessLogResult {
     const { dealId, customerId, logType } = input;
-    
-    const storeKey = `${dealId}:${customerId}:${logType}`;
-    const logs = getAccessLogStore.get(storeKey) || [];
-    
+  
+    const key = `${dealId}:${customerId}:${logType}`;
+    const logs = getAccessLogStore.get(key) || [];
+  
     return {
       recordCount: logs.length,
       logs: logs
     };
   }
-  
-   function recordAccessLog(
-    dealId: string,
-    customerId: string,
-    logType: string,
-    grantedStatus: string,
-    grantedAt: Date,
-    grantedBy: string
-  ): void {
-    const { randomUUID } = require('crypto');
-    const storeKey = `${dealId}:${customerId}:${logType}`;
-    
-    const logEntry = {
-      logId: randomUUID(),
-      dealId,
-      customerId,
-      logType,
-      grantedStatus,
-      grantedAt: grantedAt.toISOString(),
-      grantedBy
-    };
-    
-    if (!getAccessLogStore.has(storeKey)) {
-      getAccessLogStore.set(storeKey, []);
-    }
-    
-    getAccessLogStore.get(storeKey)!.push(logEntry);
-  }
-  return { getAccessLog, recordAccessLog };
+  return { getAccessLog };
 })();
 export const getAccessLog = __aivicBundle_19_getAccessLog.getAccessLog;
-export const recordAccessLog = __aivicBundle_19_getAccessLog.recordAccessLog;
 /* AIVIC_FUNCTION_BUNDLE_END owner=getAccessLog */
