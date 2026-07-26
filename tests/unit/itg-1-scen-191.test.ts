@@ -21,7 +21,11 @@ describe('顧客レコード画面に過去の商談履歴・活動記録・課�
       dealDate: new Date('2024-01-01T00:00:00Z').getTime() + index * 86400000,
     }));
 
-    const allRecords = [...activityRecords, ...dealRecords].sort((a, b) => b.activityDate - a.activityDate);
+    const allRecords = [...activityRecords, ...dealRecords].sort((a, b) => {
+      const aDate = 'activityDate' in a ? a.activityDate : a.dealDate;
+      const bDate = 'activityDate' in b ? b.activityDate : b.dealDate;
+      return bDate - aDate;
+    });
 
     // 機能を実行
     const result = getCustomerActivityHistory({
@@ -36,7 +40,9 @@ describe('顧客レコード画面に過去の商談履歴・活動記録・課�
 
     // 返却されたレコードが時系列順（新しい順）に並んでいることを確認
     for (let i = 0; i < result.records.length - 1; i++) {
-      expect(result.records[i].activityDate).toBeGreaterThanOrEqual(result.records[i + 1].activityDate);
+      const currentDate = 'activityDate' in result.records[i] ? result.records[i].activityDate : result.records[i].dealDate;
+      const nextDate = 'activityDate' in result.records[i + 1] ? result.records[i + 1].activityDate : result.records[i + 1].dealDate;
+      expect(currentDate).toBeGreaterThanOrEqual(nextDate);
     }
 
     // 101件目のレコードが含まれていないことを確認
@@ -48,7 +54,9 @@ describe('顧客レコード画面に過去の商談履歴・活動記録・課�
 
     // 最初の記録（最新）の日付が最後の記録（古い）の日付より新しいことを確認
     if (result.records.length > 1) {
-      expect(result.records[0].activityDate).toBeGreaterThan(result.records[result.records.length - 1].activityDate);
+      const firstDate = 'activityDate' in result.records[0] ? result.records[0].activityDate : result.records[0].dealDate;
+      const lastDate = 'activityDate' in result.records[result.records.length - 1] ? result.records[result.records.length - 1].activityDate : result.records[result.records.length - 1].dealDate;
+      expect(firstDate).toBeGreaterThan(lastDate);
     }
 
     // キャッシュ状態が正常であることを確認
