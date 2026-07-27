@@ -1,23 +1,46 @@
-import { detectSalesRevenueRecognitionBillingDiscrepancy } from "../../src/logic/it-1784969823049-1-1-1";
+import { validateInvoiceDetails } from "../../src/logic/it-1-1";
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
-  // SCEN-259: [edge] 売上請求ズレ検出機能 - 売上計上予定日が請求日より1日遅延している場合が許容範囲内と判定される
-  test("売上計上予定日が請求日より1日遅延している場合、許容範囲内と判定される", () => {
-    const revenueRecognitionDate = new Date("2024-01-15T00:00:00Z");
-    const billingDate = new Date("2024-01-14T00:00:00Z");
-    const toleranceDaysDelay = 1;
+describe("見積・注文・請求書の自動生成と商談ステータス紐付け", () => {
+  // SCEN-259
+  test("帳票内容検証機能 - 複数明細のうち1行だけ商品名が空の場合、その行についてのみ警告を表示する", () => {
+    const invoiceDetails = [
+      {
+        lineNumber: 1,
+        productName: "商品A",
+        quantity: 10,
+        unitPrice: 1000,
+      },
+      {
+        lineNumber: 2,
+        productName: "商品B",
+        quantity: 5,
+        unitPrice: 2000,
+      },
+      {
+        lineNumber: 3,
+        productName: "",
+        quantity: 3,
+        unitPrice: 1500,
+      },
+      {
+        lineNumber: 4,
+        productName: "商品D",
+        quantity: 8,
+        unitPrice: 2500,
+      },
+      {
+        lineNumber: 5,
+        productName: "商品E",
+        quantity: 2,
+        unitPrice: 3000,
+      },
+    ];
 
-    const result = detectSalesRevenueRecognitionBillingDiscrepancy({
-      revenueRecognitionDate,
-      billingDate,
-      toleranceDaysDelay,
-    });
+    const validationResult = validateInvoiceDetails(invoiceDetails);
 
-    // ズレが許容範囲内（1日）であるため、statusは「OK」またはalertLevelが「warning」以下
-    expect(result.status).toBe("OK");
-    expect(result.alertLevel).toBeLessThanOrEqual(1); // 0=OK, 1=warning
-    expect(result.isWithinTolerance).toBe(true);
-    expect(result.discrepancyDays).toBe(-1); // 売上計上が請求より1日遅い
-    expect(result.errorMessage).toBeUndefined();
+    expect(validationResult.warnings).toHaveLength(1);
+    expect(validationResult.warnings[0]).toMatch(/3行目/);
+    expect(validationResult.warnings[0]).toMatch(/商品名/);
+    expect(validationResult.lineNumbersWithWarnings).toEqual([3]);
   });
 });

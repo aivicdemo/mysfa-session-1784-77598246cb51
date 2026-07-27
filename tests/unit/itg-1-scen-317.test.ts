@@ -1,93 +1,53 @@
-import { generateLicenseCostComparisonTable } from "../../src/logic/it-1-1";
+import { generateMonthlySettlementReport } from '../../src/logic/it-1-3';
 
-describe("見積・注文・請求書の自動生成機能 - ライセンス費用・運用コスト比較", () => {
-  // SCEN-317
-  test("複数年度にわたるライセンス費用と運用コストを累計して比較表が生成される", () => {
-    // Arrange: 複数年度のライセンス費用と運用コストデータ
-    const comparisonInput = {
-      fiscalYears: [
-        {
-          year: 2023,
-          annualLicenseCost: 1200000,
-          annualOperationCost: 450000,
-        },
-        {
-          year: 2024,
-          annualLicenseCost: 1200000,
-          annualOperationCost: 480000,
-        },
-        {
-          year: 2025,
-          annualLicenseCost: 1200000,
-          annualOperationCost: 510000,
-        },
-      ],
-    };
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  test('SCEN-317: 月次決算レポート生成機能 - 対象期間の開始日の前日23:59:59時点のレコードは集計対象から除外される', () => {
+    // 対象期間: 2024年1月1日 00:00:00～2024年1月31日 23:59:59
+    const period_start = new Date('2024-01-01T00:00:00Z');
+    const period_end = new Date('2024-01-31T23:59:59Z');
 
-    // Act: 比較表を生成
-    const result = generateLicenseCostComparisonTable(comparisonInput);
+    // テスト対象レコード
+    const records = [
+      // 対象期間の開始日の前日23:59:59に作成 → 除外対象
+      {
+        id: 'record_001',
+        created_at: new Date('2023-12-31T23:59:59Z'),
+        sales_amount: 10000
+      },
+      // 対象期間の開始日00:00:00に作成 → 集計対象
+      {
+        id: 'record_002',
+        created_at: new Date('2024-01-01T00:00:00Z'),
+        sales_amount: 20000
+      },
+      // 対象期間の終了日23:59:59に作成 → 集計対象
+      {
+        id: 'record_003',
+        created_at: new Date('2024-01-31T23:59:59Z'),
+        sales_amount: 30000
+      }
+    ];
 
-    // Assert: 比較表の構造と値が正しいことを検証
-    expect(result).toEqual({
-      comparisonTable: [
-        {
-          year: 2023,
-          annualLicenseCost: 1200000,
-          annualOperationCost: 450000,
-          yearlyTotalCost: 1650000,
-          cumulativeLicenseCost: 1200000,
-          cumulativeOperationCost: 450000,
-          cumulativeTotalCost: 1650000,
-        },
-        {
-          year: 2024,
-          annualLicenseCost: 1200000,
-          annualOperationCost: 480000,
-          yearlyTotalCost: 1680000,
-          cumulativeLicenseCost: 2400000,
-          cumulativeOperationCost: 930000,
-          cumulativeTotalCost: 3330000,
-        },
-        {
-          year: 2025,
-          annualLicenseCost: 1200000,
-          annualOperationCost: 510000,
-          yearlyTotalCost: 1710000,
-          cumulativeLicenseCost: 3600000,
-          cumulativeOperationCost: 1440000,
-          cumulativeTotalCost: 5040000,
-        },
-      ],
-      grandTotalLicenseCost: 3600000,
-      grandTotalOperationCost: 1440000,
-      grandTotalCost: 5040000,
-      averageAnnualCost: 1680000,
+    // 月次決算レポート生成関数を呼び出し
+    const report = generateMonthlySettlementReport({
+      records: records,
+      period_start: period_start,
+      period_end: period_end
     });
 
-    // Assert: 各年度の年度別累計が正しく計算されていることを確認
-    expect(result.comparisonTable[0].yearlyTotalCost).toBe(1650000);
-    expect(result.comparisonTable[1].yearlyTotalCost).toBe(1680000);
-    expect(result.comparisonTable[2].yearlyTotalCost).toBe(1710000);
-
-    // Assert: 各年度の累計ライセンス費用が正しく計算されていることを確認
-    expect(result.comparisonTable[0].cumulativeLicenseCost).toBe(1200000);
-    expect(result.comparisonTable[1].cumulativeLicenseCost).toBe(2400000);
-    expect(result.comparisonTable[2].cumulativeLicenseCost).toBe(3600000);
-
-    // Assert: 各年度の累計運用コストが正しく計算されていることを確認
-    expect(result.comparisonTable[0].cumulativeOperationCost).toBe(450000);
-    expect(result.comparisonTable[1].cumulativeOperationCost).toBe(930000);
-    expect(result.comparisonTable[2].cumulativeOperationCost).toBe(1440000);
-
-    // Assert: 総累計費用（ライセンス費用＋運用コスト）が正しく表示されていることを確認
-    expect(result.comparisonTable[0].cumulativeTotalCost).toBe(1650000);
-    expect(result.comparisonTable[1].cumulativeTotalCost).toBe(3330000);
-    expect(result.comparisonTable[2].cumulativeTotalCost).toBe(5040000);
-
-    // Assert: 総合計値が正しく計算されていることを確認
-    expect(result.grandTotalLicenseCost).toBe(3600000);
-    expect(result.grandTotalOperationCost).toBe(1440000);
-    expect(result.grandTotalCost).toBe(5040000);
-    expect(result.averageAnnualCost).toBe(1680000);
+    // 期待結果の検証
+    // 集計対象: record_002 (20,000円) + record_003 (30,000円) = 50,000円
+    expect(report.total_sales_amount).toBe(50000);
+    expect(report.included_record_count).toBe(2);
+    expect(report.included_records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'record_002', sales_amount: 20000 }),
+        expect.objectContaining({ id: 'record_003', sales_amount: 30000 })
+      ])
+    );
+    // record_001 は集計対象から除外されていることを確認
+    expect(report.included_records).not.toContainEqual(
+      expect.objectContaining({ id: 'record_001' })
+    );
   });
 });

@@ -1,77 +1,61 @@
-import { updateBillingStatusWithPaymentSchedule } from "../../src/logic/it-1-2";
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe("商談ステータスと請求データの紐付け・可視化", () => {
-  test("SCEN-179: 顧客からの請求支払い予定日の連絡が反映され、請求ステータスが『予定有り』に更新される", () => {
-    // Arrange: 商談レコードと顧客からの支払い予定日情報を準備
-    const deal_id = "DEAL-2024-001";
-    const customer_id = "CUST-00123";
-    const customer_name = "株式会社テスト";
-    const billing_amount = 1500000;
-    const deal_status = "成約";
-    const scheduled_payment_date = "2024-02-28";
-    const contact_date = "2024-02-15T14:30:00Z";
-    const billing_status_before = "未確認";
-
-    const deal_record = {
-      deal_id,
-      customer_id,
-      customer_name,
-      billing_amount,
-      deal_status,
-      billing_data: {
-        billing_status: billing_status_before,
-        scheduled_payment_date: null,
-        last_contact_date: null,
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-179
+  test('顧客別商談進捗集計機能 - 失注ステータスの商談件数が複数件のとき、その件数が正確に集計される', () => {
+    const deals = [
+      {
+        deal_id: 'DEAL-001',
+        customer_id: 'CUST-100',
+        status: '失注',
+        amount: 0,
       },
-    };
+      {
+        deal_id: 'DEAL-002',
+        customer_id: 'CUST-100',
+        status: '失注',
+        amount: 0,
+      },
+      {
+        deal_id: 'DEAL-003',
+        customer_id: 'CUST-100',
+        status: '失注',
+        amount: 0,
+      },
+      {
+        deal_id: 'DEAL-004',
+        customer_id: 'CUST-200',
+        status: '受注',
+        amount: 100000,
+      },
+    ];
 
-    const payment_schedule_input = {
-      deal_id,
-      customer_id,
-      scheduled_payment_date,
-      contact_date,
-      contact_source: "phone",
-    };
+    const result = aggregateDealProgressByCustomer(deals);
 
-    // Act: 請求ステータスと支払い予定日を更新
-    const updated_deal = updateBillingStatusWithPaymentSchedule(
-      deal_record,
-      payment_schedule_input
+    const cust100_result = result.find(
+      (r) => r.customer_id === 'CUST-100'
     );
 
-    // Assert: 請求ステータスが『予定有り』に更新され、支払い予定日が正しく紐付けられていることを確認
-    expect(updated_deal.billing_data.billing_status).toBe("予定有り");
-    expect(updated_deal.billing_data.scheduled_payment_date).toBe(
-      "2024-02-28"
-    );
-    expect(updated_deal.billing_data.last_contact_date).toBe(
-      "2024-02-15T14:30:00Z"
-    );
-    expect(updated_deal.deal_id).toBe(deal_id);
-    expect(updated_deal.customer_id).toBe(customer_id);
-    expect(updated_deal.customer_name).toBe(customer_name);
-    expect(updated_deal.billing_amount).toBe(1500000);
-    expect(updated_deal.deal_status).toBe("成約");
+    expect(cust100_result).toBeDefined();
+    expect(cust100_result?.status_breakdown).toBeDefined();
 
-    // Assert: 請求データが商談レコードに正しく紐付けられていることを確認
-    expect(updated_deal.billing_data).toBeDefined();
-    expect(typeof updated_deal.billing_data.billing_status).toBe("string");
-    expect(typeof updated_deal.billing_data.scheduled_payment_date).toBe(
-      "string"
-    );
-    expect(typeof updated_deal.billing_data.last_contact_date).toBe("string");
+    const lostDealCount =
+      cust100_result?.status_breakdown?.['失注']?.count ?? 0;
+    expect(lostDealCount).toBe(3);
 
-    // Assert: 支払い予定日のフォーマット検証（YYYY-MM-DD形式）
-    const date_format_regex = /^\d{4}-\d{2}-\d{2}$/;
-    expect(date_format_regex.test(updated_deal.billing_data.scheduled_payment_date)).toBe(true);
+    const lostDeals =
+      cust100_result?.status_breakdown?.['失注']?.deals ?? [];
+    expect(lostDeals.length).toBe(3);
+    expect(lostDeals.every((d) => d.status === '失注')).toBe(true);
 
-    // Assert: 連絡日時のISO 8601フォーマット検証
-    const iso_datetime_regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
-    expect(iso_datetime_regex.test(updated_deal.billing_data.last_contact_date)).toBe(true);
+    const allStatuses = Object.keys(cust100_result?.status_breakdown ?? {});
+    expect(allStatuses).toContain('失注');
 
-    // Assert: 元のdeal_recordが変更されていないことを確認（イミュータビリティ）
-    expect(deal_record.billing_data.billing_status).toBe(billing_status_before);
-    expect(deal_record.billing_data.scheduled_payment_date).toBeNull();
-    expect(deal_record.billing_data.last_contact_date).toBeNull();
+    const otherStatuses = allStatuses.filter((s) => s !== '失注');
+    otherStatuses.forEach((status) => {
+      expect(
+        (cust100_result?.status_breakdown?.[status]?.count ?? 0)
+      ).toBe(0);
+    });
   });
 });

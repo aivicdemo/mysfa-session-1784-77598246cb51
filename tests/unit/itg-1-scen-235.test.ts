@@ -1,79 +1,72 @@
-import { calculateLicenseCostEffectiveness } from "../../src/logic/it-1-3";
+import { updateDealStatusToContracting } from '../../src/logic/it-1784969823049-2-1-1';
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
-  // SCEN-235: [edge] ライセンス費用対効果分析機能 - 投資回収期間がゼロの場合（即座に削減効果が出る場合）、ROIが無限大として扱われるか正しく処理される
-  test("SCEN-235: 投資回収期間がゼロの場合、ROIが無限大として適切に処理される", () => {
-    // ハッピーパス: 初期投資額 10,000 円、月次削減効果 10,000 円以上で投資回収期間ゼロのシナリオ
-    const analysis_1 = {
-      initial_investment: 10000,
-      monthly_savings: 10000,
-      analysis_period_months: 12,
-    };
+describe('商談レコードの進捗ステータスと提案内容の入力・保存機能', () => {
+  // SCEN-235
+  test('商談ステータス更新・請求データ紐付け機能 - 商談ステータスを成約に変更する際、商談進捗ステータスマスタで成約が有効な選択肢である場合にステータス更新が成功する', () => {
+    // 商談進捗ステータスマスタのセットアップ
+    const statusMasterData = [
+      { id: 'status_001', name: '初期接触', enabled: true },
+      { id: 'status_002', name: '提案中', enabled: true },
+      { id: 'status_003', name: '交渉中', enabled: true },
+      { id: 'status_004', name: '成約', enabled: true },
+      { id: 'status_005', name: '失注', enabled: true },
+    ];
 
-    const result_1 = calculateLicenseCostEffectiveness(analysis_1);
-
-    // 投資回収期間がゼロ → ROI は無限大として処理される
-    expect(result_1.payback_period_months).toBe(0);
-    expect(result_1.roi).toBe(999999);
-    expect(result_1.total_savings_12_months).toBe(120000);
-    expect(result_1.net_benefit).toBe(110000);
-
-    // エッジケース: 月次削減効果が初期投資より大きい場合
-    const analysis_2 = {
-      initial_investment: 5000,
-      monthly_savings: 15000,
-      analysis_period_months: 12,
-    };
-
-    const result_2 = calculateLicenseCostEffectiveness(analysis_2);
-
-    expect(result_2.payback_period_months).toBe(0);
-    expect(result_2.roi).toBe(999999);
-    expect(result_2.total_savings_12_months).toBe(180000);
-    expect(result_2.net_benefit).toBe(175000);
-
-    // 複数回実行の一貫性確認: 同じ入力で複数回実行
-    const result_2_retry = calculateLicenseCostEffectiveness(analysis_2);
-
-    expect(result_2_retry.payback_period_months).toBe(
-      result_2.payback_period_months
+    // 成約ステータスが有効であることを確認
+    const contracting_status = statusMasterData.find(
+      (s) => s.name === '成約' && s.enabled === true
     );
-    expect(result_2_retry.roi).toBe(result_2.roi);
-    expect(result_2_retry.total_savings_12_months).toBe(
-      result_2.total_savings_12_months
-    );
-    expect(result_2_retry.net_benefit).toBe(result_2.net_benefit);
+    expect(contracting_status).toBeDefined();
+    expect(contracting_status?.enabled).toBe(true);
 
-    // 通常ケース: 投資回収期間がゼロでない場合の比較検証
-    const analysis_3 = {
-      initial_investment: 10000,
-      monthly_savings: 2000,
-      analysis_period_months: 12,
+    // テスト用の商談レコード（現在のステータスを「交渉中」に設定）
+    const deal_id = 'deal_001';
+    const customer_id = 'cust_001';
+    const current_status = '交渉中';
+    const deal_amount = 1500000;
+    const billing_reference_id = 'bill_ref_001';
+    const created_at = new Date('2024-01-15T10:00:00Z');
+    const current_timestamp = new Date('2024-01-15T14:30:00Z');
+
+    // 商談ステータス更新のリクエスト
+    const update_request = {
+      deal_id: deal_id,
+      customer_id: customer_id,
+      new_status: '成約',
+      updated_at: current_timestamp,
     };
 
-    const result_3 = calculateLicenseCostEffectiveness(analysis_3);
+    // APIを呼び出し
+    const result = updateDealStatusToContracting(
+      update_request,
+      statusMasterData,
+      current_timestamp
+    );
 
-    expect(result_3.payback_period_months).toBe(5);
-    expect(result_3.roi).toBe(140);
-    expect(result_3.total_savings_12_months).toBe(24000);
-    expect(result_3.net_benefit).toBe(14000);
+    // APIレスポンスのステータスコードが200（成功）であることを確認
+    expect(result.status_code).toBe(200);
 
-    // 計算結果が有効な数値として返されていることを確認（Infinity でなく、エラー値でない）
-    expect(typeof result_1.roi).toBe("number");
-    expect(typeof result_2.roi).toBe("number");
-    expect(typeof result_3.roi).toBe("number");
+    // 商談レコードのステータスフィールドが「成約」に更新されていることを検証
+    expect(result.updated_deal.deal_id).toBe(deal_id);
+    expect(result.updated_deal.status).toBe('成約');
+    expect(result.updated_deal.customer_id).toBe(customer_id);
 
-    expect(isFinite(result_1.roi)).toBe(true);
-    expect(isFinite(result_2.roi)).toBe(true);
-    expect(isFinite(result_3.roi)).toBe(true);
+    // 商談の更新日時が現在時刻に近い値に変更されていることを確認
+    expect(result.updated_deal.updated_at).toEqual(current_timestamp);
 
-    // ゼロ除算エラーが発生していないことを確認（esLint 警告の有無を確認しない、代わりに論理的妥当性を検証）
-    expect(result_1.payback_period_months).not.toBeNaN();
-    expect(result_2.payback_period_months).not.toBeNaN();
-    expect(result_3.payback_period_months).not.toBeNaN();
+    // 商談に紐付く請求データが存在する場合、参照整合性が保たれていることを確認
+    if (result.updated_deal.billing_reference_id) {
+      expect(result.updated_deal.billing_reference_id).toBe(
+        billing_reference_id
+      );
+      expect(result.billing_data_integrity).toBe(true);
+    }
 
-    // 投資回収期間がゼロの場合、ROI が大きな数値（999999 相当）として扱われていることを確認
-    expect(result_1.roi).toBeGreaterThanOrEqual(999999);
-    expect(result_2.roi).toBeGreaterThanOrEqual(999999);
+    // ステータス遷移履歴が記録されていることを確認
+    expect(result.status_history_recorded).toBe(true);
+    expect(result.status_history).toHaveLength(1);
+    expect(result.status_history[0].from_status).toBe('交渉中');
+    expect(result.status_history[0].to_status).toBe('成約');
+    expect(result.status_history[0].changed_at).toEqual(current_timestamp);
   });
 });

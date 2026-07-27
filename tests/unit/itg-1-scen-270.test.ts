@@ -1,122 +1,110 @@
-import { describe, test, expect, beforeEach, afterEach } from '@jest/globals';
-import {
-  createDeal,
-  updateDealStatus,
-  checkCustomerPortalAccess,
-  getAccessLog
-} from '../../src/logic/it-1784969823049-2-1-1';
+import { validateQuotationContent } from "../../src/logic/it-1-1";
 
-describe('顧客ポータルアクセス権限自動付与機能', () => {
-  let testCustomerId: string;
-  let testDealId: string;
-
-  beforeEach(() => {
-    testCustomerId = `CUST_TEST_${Date.now()}`;
-    testDealId = `DEAL_TEST_${Date.now()}`;
-  });
-
-  afterEach(() => {
-    // テストデータクリーンアップ
-    testCustomerId = '';
-    testDealId = '';
-  });
-
+describe("見積・注文・請求書の自動生成と商談ステータス紐付け", () => {
   // SCEN-270
-  test('新規商談作成時は権限付与対象外で、ステータス更新時にのみ権限が付与される', () => {
-    // 1. テスト用の新規顧客データを作成する
-    const customerData = {
-      customerId: testCustomerId,
-      customerName: 'Test Customer Corp',
-      industryType: 'Manufacturing'
+  test("[normal] 帳票内容検証機能 - 見積書に紐付く請求明細が1行の場合、検証対象として処理される", () => {
+    // Arrange: 見積書レコード
+    const quotationRecord = {
+      quotation_id: "QT-001",
+      customer_name: "山田商事",
+      amount: 100000,
+      created_at: new Date("2024-01-15T10:00:00Z"),
     };
 
-    // 2. 新規商談を作成し、初期ステータスを「提案前」に設定する
-    const dealCreateInput = {
-      dealId: testDealId,
-      customerId: testCustomerId,
-      dealTitle: 'Test Deal',
-      initialStatus: 'PROPOSAL_BEFORE',
-      amount: 500000,
-      createdAt: new Date('2024-04-15T09:00:00Z')
+    // 請求明細データ
+    const invoiceLinesData = [
+      {
+        line_id: "INV-LINE-001",
+        quotation_id: "QT-001",
+        product_name: "商品A",
+        quantity: 1,
+        unit_price: 100000,
+        line_amount: 100000,
+      },
+    ];
+
+    // DocumentStorageAdapter スタブ
+    const mockDocumentStorageAdapter = {
+      uploadDocument: jest.fn().mockResolvedValue({
+        file_id: "FILE-001",
+        file_url:
+          "https://drive.google.com/file/d/FILE-001/view?usp=sharing",
+      }),
+      generateShareLink: jest
+        .fn()
+        .mockResolvedValue(
+          "https://drive.google.com/file/d/FILE-001/view?usp=sharing"
+        ),
+      deleteDocument: jest.fn().mockResolvedValue({ success: true }),
     };
 
-    const createDealResult = createDeal(dealCreateInput);
-    expect(createDealResult).toEqual({
-      dealId: testDealId,
-      customerId: testCustomerId,
-      dealTitle: 'Test Deal',
-      status: 'PROPOSAL_BEFORE',
-      amount: 500000,
-      permissionGranted: false,
-      createdAt: new Date('2024-04-15T09:00:00Z').toISOString()
-    });
-
-    // 3. 顧客ポータルアクセス権限が付与されていないことを確認する
-    const accessCheckAfterCreate = checkCustomerPortalAccess({
-      customerId: testCustomerId,
-      dealId: testDealId
-    });
-    expect(accessCheckAfterCreate).toEqual({
-      hasAccess: false,
-      reason: 'DEAL_NOT_IN_PROPOSAL_STATUS'
-    });
-
-    // 4. 商談のステータスを「提案中」に更新する
-    const statusUpdateInput = {
-      dealId: testDealId,
-      customerId: testCustomerId,
-      newStatus: 'PROPOSAL_IN_PROGRESS',
-      updatedAt: new Date('2024-04-16T10:30:00Z'),
-      updatedBy: 'SALES_USER_001'
+    // NotificationServiceAdapter スタブ
+    const mockNotificationServiceAdapter = {
+      sendQuoteNotification: jest.fn().mockResolvedValue({
+        message_id: "MSG-001",
+        status: "sent",
+      }),
+      sendOrderNotification: jest.fn().mockResolvedValue({
+        message_id: "MSG-002",
+        status: "sent",
+      }),
+      sendInvoiceNotification: jest.fn().mockResolvedValue({
+        message_id: "MSG-003",
+        status: "sent",
+      }),
+      getDeliveryStatus: jest
+        .fn()
+        .mockResolvedValue({ status: "delivered", opened_at: null }),
     };
 
-    const updateResult = updateDealStatus(statusUpdateInput);
-    expect(updateResult).toEqual({
-      dealId: testDealId,
-      customerId: testCustomerId,
-      previousStatus: 'PROPOSAL_BEFORE',
-      newStatus: 'PROPOSAL_IN_PROGRESS',
-      permissionGranted: true,
-      grantedAt: new Date('2024-04-16T10:30:00Z').toISOString()
-    });
+    // Act: 検証処理を実行
+    const validationResult = validateQuotationContent(
+      quotationRecord,
+      invoiceLinesData,
+      mockDocumentStorageAdapter,
+      mockNotificationServiceAdapter
+    );
 
-    // 5. 顧客ポータルアクセス権限が付与されたことを確認する
-    const accessCheckAfterUpdate = checkCustomerPortalAccess({
-      customerId: testCustomerId,
-      dealId: testDealId
-    });
-    expect(accessCheckAfterUpdate).toEqual({
-      hasAccess: true,
-      reason: 'PERMISSION_GRANTED_ON_STATUS_UPDATE'
-    });
-
-    // 6. 権限付与ログに適切なレコードが記録されていることを検証する
-    const accessLog = getAccessLog({
-      dealId: testDealId,
-      customerId: testCustomerId,
-      logType: 'PERMISSION_GRANT'
-    });
-
-    expect(accessLog).toEqual({
-      recordCount: 1,
-      logs: [
+    // Assert: 検証結果をアサート
+    expect(validationResult).toEqual({
+      quotation_id: "QT-001",
+      validation_status: "valid",
+      invoice_line_count: 1,
+      total_amount: 100000,
+      matched_details: [
         {
-          logId: expect.any(String),
-          dealId: testDealId,
-          customerId: testCustomerId,
-          logType: 'PERMISSION_GRANT',
-          grantedStatus: 'PROPOSAL_IN_PROGRESS',
-          grantedAt: new Date('2024-04-16T10:30:00Z').toISOString(),
-          grantedBy: 'SALES_USER_001'
-        }
-      ]
+          line_id: "INV-LINE-001",
+          product_name: "商品A",
+          quantity: 1,
+          unit_price: 100000,
+          line_amount: 100000,
+          match_status: "matched",
+        },
+      ],
+      document_upload_confirmed: true,
+      notification_sent_confirmed: true,
     });
 
-    // 期待結果: 新規商談作成時点では顧客ポータルアクセス権限は付与されず、
-    // 商談ステータスが「提案中」以降に更新された時点で初めて権限が自動付与される
-    expect(createDealResult.permissionGranted).toBe(false);
-    expect(updateResult.permissionGranted).toBe(true);
-    expect(accessLog.recordCount).toBe(1);
-    expect(accessLog.logs[0].grantedStatus).toBe('PROPOSAL_IN_PROGRESS');
+    // DocumentStorageAdapter.uploadDocument が呼び出されたことを確認
+    expect(mockDocumentStorageAdapter.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quotation_id: "QT-001",
+        customer_name: "山田商事",
+      })
+    );
+    expect(mockDocumentStorageAdapter.uploadDocument).toHaveBeenCalledTimes(1);
+
+    // NotificationServiceAdapter.sendQuoteNotification が呼び出されたことを確認
+    expect(
+      mockNotificationServiceAdapter.sendQuoteNotification
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quotation_id: "QT-001",
+        customer_name: "山田商事",
+      })
+    );
+    expect(
+      mockNotificationServiceAdapter.sendQuoteNotification
+    ).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,50 +1,70 @@
-import { determinePeriodForMonthlyReporting } from '../../src/logic/it-1-3';
+import { extractMonthlyReport } from '../../src/logic/it-1-3';
 
 describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
-  // SCEN-112: [edge] 抽出対象期間自動決定機能 - 2月の抽出対象期間が28日（または29日）で正しく決定される
-  test('should correctly determine extraction period end date for February in leap and non-leap years', () => {
-    // 平年 (2023年) の2月のテスト
-    const non_leap_year_input = {
-      target_month: 2,
-      system_year: 2023,
-    };
-    const non_leap_year_result = determinePeriodForMonthlyReporting(non_leap_year_input);
-    
-    expect(non_leap_year_result.period_start).toBe('2023-02-01');
-    expect(non_leap_year_result.period_end).toBe('2023-02-28');
-    expect(non_leap_year_result.end_date_day).toBe(28);
+  // SCEN-112
+  test('月次報告期限・データ抽出処理 - アクセス権削除時はデータ抽出が実行されない', async () => {
+    const salesPersonId = 'SALES-001';
+    const salesPersonName = '田中太郎';
+    const reportDeadline = new Date('2024-01-31T23:59:59Z');
+    const accessRevokedAt = new Date('2024-01-31T10:00:00Z');
+    const monthlySalesAmount = 1000000;
+    const contractCount = 5;
 
-    // うるう年 (2024年) の2月のテスト
-    const leap_year_input = {
-      target_month: 2,
-      system_year: 2024,
+    const mockExecutionLog: { userId: string; success: boolean; errorMessage?: string; timestamp: Date }[] = [];
+    const mockDatabase = {
+      findSalesPerson: jest.fn().mockResolvedValue({
+        id: salesPersonId,
+        name: salesPersonName,
+        is_active: false,
+        access_revoked_at: accessRevokedAt,
+      }),
+      findSalesData: jest.fn().mockResolvedValue({
+        userId: salesPersonId,
+        salesAmount: monthlySalesAmount,
+        contractCount: contractCount,
+        reportPeriod: '2024-01',
+      }),
+      recordExtractionLog: jest.fn().mockImplementation((log) => {
+        mockExecutionLog.push(log);
+      }),
+      createExtractionRecord: jest.fn(),
     };
-    const leap_year_result = determinePeriodForMonthlyReporting(leap_year_input);
-    
-    expect(leap_year_result.period_start).toBe('2024-02-01');
-    expect(leap_year_result.period_end).toBe('2024-02-29');
-    expect(leap_year_result.end_date_day).toBe(29);
 
-    // 別のうるう年 (2020年) の2月のテスト
-    const another_leap_year_input = {
-      target_month: 2,
-      system_year: 2020,
+    const mockAccessControlService = {
+      verifyActiveAccess: jest.fn().mockResolvedValue(false),
+      getUserAccessStatus: jest.fn().mockResolvedValue({
+        userId: salesPersonId,
+        isActive: false,
+        accessRevokedAt: accessRevokedAt,
+      }),
     };
-    const another_leap_year_result = determinePeriodForMonthlyReporting(another_leap_year_input);
-    
-    expect(another_leap_year_result.period_start).toBe('2020-02-01');
-    expect(another_leap_year_result.period_end).toBe('2020-02-29');
-    expect(another_leap_year_result.end_date_day).toBe(29);
 
-    // 別の平年 (2022年) の2月のテスト
-    const another_non_leap_year_input = {
-      target_month: 2,
-      system_year: 2022,
-    };
-    const another_non_leap_year_result = determinePeriodForMonthlyReporting(another_non_leap_year_input);
-    
-    expect(another_non_leap_year_result.period_start).toBe('2022-02-01');
-    expect(another_non_leap_year_result.period_end).toBe('2022-02-28');
-    expect(another_non_leap_year_result.end_date_day).toBe(28);
+    const result = await extractMonthlyReport(
+      {
+        userId: salesPersonId,
+        reportDeadline: reportDeadline,
+        extractionEnabled: true,
+        targetPeriod: '2024-01',
+      },
+      mockDatabase,
+      mockAccessControlService
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('ACCESS_DENIED');
+    expect(result.errorMessage).toMatch(/Access denied/);
+    expect(result.errorMessage).toMatch(/SALES-001/);
+    expect(result.errorMessage).toMatch(/no active permission/);
+    expect(mockDatabase.createExtractionRecord).not.toHaveBeenCalled();
+    expect(mockExecutionLog.some((log) => log.success === false)).toBe(true);
+    expect(
+      mockExecutionLog.some(
+        (log) =>
+          log.errorMessage &&
+          log.errorMessage.includes('Access denied') &&
+          log.errorMessage.includes('SALES-001')
+      )
+    ).toBe(true);
+    expect(mockAccessControlService.verifyActiveAccess).toHaveBeenCalledWith(salesPersonId);
   });
 });

@@ -1,33 +1,40 @@
-import { validateInvoiceGenerationData } from "../../src/logic/it-1-2";
+import { aggregateMonthlySalesTotal } from '../../src/logic/it-1-3';
 
-describe("商談ステータスと請求データの紐付け・可視化", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-130
-  test("帳票生成検証機能 - 生成された請求書の顧客情報が不完全な場合に警告が表示される", () => {
-    const incomplete_customer_data = {
-      customer_name: "",
-      customer_address: "",
-      customer_phone: "09012345678",
-      transaction_amount: 100000,
-      transaction_date: "2024-01-15",
-      line_items: [
-        {
-          item_name: "商品A",
-          quantity: 10,
-          unit_price: 10000,
-        },
-      ],
+  test('当月売上集計機能 - 商談金額が小数を含むときも正確に合算される', () => {
+    // 準備: テストデータとして、小数を含む商談レコードを作成
+    const deal_1 = {
+      deal_id: 'D001',
+      amount: 1000.50,
+      status: '受注',
+      deal_date: new Date('2024-01-15T09:00:00Z'),
     };
 
-    const result = validateInvoiceGenerationData(incomplete_customer_data);
+    const deal_2 = {
+      deal_id: 'D002',
+      amount: 2500.75,
+      status: '受注',
+      deal_date: new Date('2024-01-20T10:30:00Z'),
+    };
 
-    expect(result.is_valid).toBe(false);
-    expect(result.warnings).toContain(expect.objectContaining({ field: "customer_name" }));
-    expect(result.warnings).toContain(expect.objectContaining({ field: "customer_address" }));
-    expect(result.warnings.length).toBeGreaterThan(0);
-    expect(result.warnings.some((w: { field: string }) => w.field === "customer_name")).toBe(true);
-    expect(result.warnings.some((w: { field: string }) => w.field === "customer_address")).toBe(
-      true
-    );
-    expect(result.generation_blocked).toBe(true);
+    const deal_3 = {
+      deal_id: 'D003',
+      amount: 500.25,
+      status: '受注',
+      deal_date: new Date('2024-01-25T14:15:00Z'),
+    };
+
+    const deals = [deal_1, deal_2, deal_3];
+    const target_month = new Date('2024-01-01T00:00:00Z');
+
+    // 実行: 集計機能を実行
+    const aggregation_result = aggregateMonthlySalesTotal(deals, target_month);
+
+    // 検証: 合計金額が小数点第2位までの精度で正確に計算されている
+    const expected_total_amount = 4001.50;
+    expect(aggregation_result.total_amount).toBe(expected_total_amount);
+    expect(aggregation_result.deal_count).toBe(3);
+    expect(aggregation_result.aggregation_month).toEqual(target_month);
   });
 });

@@ -1,83 +1,40 @@
-import { extractBillingTargetData } from '../../src/logic/it-1-1';
+import { aggregateDealsByCustomer } from '../../src/logic/it-1-3';
 
-describe('見積・注文・請求書の自動生成機能', () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-204
-  test('抽出条件による請求対象データの絞り込み機能 - 抽出条件の金額範囲外のデータは除外される', () => {
-    const mockDealRecords = [
+  test('顧客別商談進捗集計機能 - 金額が非常に大きな数値の商談が含まれるとき、正確に集計される', () => {
+    const customer_id = 'CUST001';
+    const deals = [
       {
-        dealId: 'DEAL001',
-        customerId: 'CUST001',
-        amount: 150000,
-        status: 'won',
-        invoiceIssuedDate: '2024-04-15',
+        deal_id: 'DEAL001',
+        customer_id: customer_id,
+        amount: 9999999999,
+        status: '受注',
       },
       {
-        dealId: 'DEAL002',
-        customerId: 'CUST002',
-        amount: 300000,
-        status: 'won',
-        invoiceIssuedDate: '2024-04-16',
+        deal_id: 'DEAL002',
+        customer_id: customer_id,
+        amount: 1500000,
+        status: '受注',
       },
       {
-        dealId: 'DEAL003',
-        customerId: 'CUST003',
-        amount: 500000,
-        status: 'won',
-        invoiceIssuedDate: '2024-04-17',
+        deal_id: 'DEAL003',
+        customer_id: customer_id,
+        amount: 850000,
+        status: '受注',
       },
       {
-        dealId: 'DEAL004',
-        customerId: 'CUST004',
-        amount: 99999,
-        status: 'won',
-        invoiceIssuedDate: '2024-04-18',
-      },
-      {
-        dealId: 'DEAL005',
-        customerId: 'CUST005',
-        amount: 500001,
-        status: 'won',
-        invoiceIssuedDate: '2024-04-19',
-      },
-      {
-        dealId: 'DEAL006',
-        customerId: 'CUST006',
-        amount: 250000,
-        status: 'won',
-        invoiceIssuedDate: '2024-04-20',
+        deal_id: 'DEAL004',
+        customer_id: customer_id,
+        amount: 3200000,
+        status: '受注',
       },
     ];
 
-    const extractionCondition = {
-      minAmount: 100000,
-      maxAmount: 500000,
-      period: { startDate: '2024-04-01', endDate: '2024-04-30' },
-      customerSegment: 'all',
-    };
+    const result = aggregateDealsByCustomer(deals, customer_id);
 
-    const result = extractBillingTargetData(mockDealRecords, extractionCondition);
-
-    expect(result).toHaveLength(4);
-    expect(result.every((record) => record.amount >= 100000 && record.amount <= 500000)).toBe(
-      true
-    );
-    expect(result.map((record) => record.dealId)).toEqual([
-      'DEAL001',
-      'DEAL002',
-      'DEAL003',
-      'DEAL006',
-    ]);
-
-    const dealIdsWithAmountOutOfRange = mockDealRecords
-      .filter((record) => record.amount < 100000 || record.amount > 500000)
-      .map((record) => record.dealId);
-    expect(result.map((record) => record.dealId)).not.toEqual(
-      expect.arrayContaining(dealIdsWithAmountOutOfRange)
-    );
-
-    result.forEach((record) => {
-      expect(record.amount).toBeGreaterThanOrEqual(100000);
-      expect(record.amount).toBeLessThanOrEqual(500000);
-    });
+    expect(result.total_amount).toBe(10004549999);
+    expect(result.deal_count).toBe(4);
+    expect(result.average_amount).toBe(2501137499.75);
   });
 });

@@ -1,92 +1,43 @@
-import { searchCustomers } from "../../src/logic/it-1";
+import { classifyDealsByStatus } from '../../src/logic/it-1-3';
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
-  // SCEN-145: [edge] 顧客検索機能 - 検索入力に特殊文字が含まれる場合にサニタイズされて検索される
-  test("特殊文字を含む検索入力がサニタイズされ、セキュリティ脅威が防止される", async () => {
-    const fetchMock = require("jest-fetch-mock");
-    fetchMock.enableMocks();
-    fetchMock.resetMocks();
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-145: [error] 当月商談ステータス分類機能 - ステータスがnullまたは未定義の商談がある場合、集計結果に含まれない
+  test('should exclude deals with null or undefined status from aggregation results', () => {
+    const testDeals = [
+      {
+        id: 'deal_001',
+        customerId: 'cust_001',
+        status: '交渉中',
+        amount: 500000,
+        closedDate: '2024-01-15',
+      },
+      {
+        id: 'deal_002',
+        customerId: 'cust_002',
+        status: null,
+        amount: 300000,
+        closedDate: '2024-01-20',
+      },
+      {
+        id: 'deal_003',
+        customerId: 'cust_003',
+        status: undefined,
+        amount: 200000,
+        closedDate: '2024-01-25',
+      },
+    ];
 
-    // XSS ペイロード
-    const xssPayload = "<script>alert(1)</script>";
-    // SQL インジェクション ペイロード
-    const sqlInjectionPayload = "'; DROP TABLE customers--";
-    // SQL ワイルドカード
-    const wildcardPayload = "%";
+    const result = classifyDealsByStatus(testDeals);
 
-    // 検索実行時のネットワークリクエストをモック
-    fetchMock.mockResponseOnce(
-      JSON.stringify({
-        success: true,
-        data: [],
-        message: "該当する顧客が見つかりません",
-      }),
-      { status: 200 }
-    );
-
-    // XSS ペイロード検索実行
-    const resultXss = await searchCustomers({ searchValue: xssPayload });
-
-    // リクエストパラメータを確認
-    const callArgsXss = fetchMock.mock.calls[0];
-    const urlXss = new URL(callArgsXss[0]);
-    const searchParamXss = urlXss.searchParams.get("q");
-
-    // XSS ペイロードが HTMLエンコードされていることを確認
-    expect(searchParamXss).not.toContain("<script>");
-    expect(searchParamXss).toMatch(/&lt;|&#/);
-    expect(resultXss.success).toBe(true);
-    expect(Array.isArray(resultXss.data)).toBe(true);
-
-    fetchMock.resetMocks();
-    fetchMock.mockResponseOnce(
-      JSON.stringify({
-        success: true,
-        data: [],
-        message: "該当する顧客が見つかりません",
-      }),
-      { status: 200 }
-    );
-
-    // SQL インジェクション ペイロード検索実行
-    const resultSql = await searchCustomers({
-      searchValue: sqlInjectionPayload,
+    expect(result.totalCount).toBe(1);
+    expect(result.deals).toHaveLength(1);
+    expect(result.deals[0].id).toBe('deal_001');
+    expect(result.deals[0].status).toBe('交渉中');
+    expect(result.statusBreakdown).toEqual({
+      '交渉中': {
+        count: 1,
+        totalAmount: 500000,
+      },
     });
-
-    const callArgsSql = fetchMock.mock.calls[0];
-    const urlSql = new URL(callArgsSql[0]);
-    const searchParamSql = urlSql.searchParams.get("q");
-
-    // SQL インジェクション文字列がエスケープされていることを確認
-    expect(searchParamSql).not.toContain("DROP TABLE");
-    expect(searchParamSql).toMatch(/\\|%27|&#/);
-    expect(resultSql.success).toBe(true);
-    expect(Array.isArray(resultSql.data)).toBe(true);
-
-    fetchMock.resetMocks();
-    fetchMock.mockResponseOnce(
-      JSON.stringify({
-        success: true,
-        data: [],
-        message: "該当する顧客が見つかりません",
-      }),
-      { status: 200 }
-    );
-
-    // ワイルドカード検索実行
-    const resultWildcard = await searchCustomers({ searchValue: wildcardPayload });
-
-    const callArgsWildcard = fetchMock.mock.calls[0];
-    const urlWildcard = new URL(callArgsWildcard[0]);
-    const searchParamWildcard = urlWildcard.searchParams.get("q");
-
-    // ワイルドカード文字が適切にエスケープされていることを確認
-    expect(searchParamWildcard).toBeDefined();
-    // % が URL エンコードされて %25 になるか、SQL エスケープされることを確認
-    expect(searchParamWildcard).toMatch(/%25|\\%/);
-    expect(resultWildcard.success).toBe(true);
-    expect(Array.isArray(resultWildcard.data)).toBe(true);
-
-    fetchMock.disableMocks();
   });
 });

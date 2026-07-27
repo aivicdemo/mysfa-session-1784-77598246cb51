@@ -1,33 +1,14 @@
-import { updateDealStatusToClose } from "../../src/logic/it-1784969823049-2-1-1";
+import { aggregateMonthlySalesRevenue } from '../../src/logic/it-1-3';
 
-describe("商談レコードの進捗ステータスと提案内容の入力・保存機能", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-126
-  test("顧客情報が未入力の商談を『成約』に更新すると拒否される", () => {
-    const deal_record = {
-      deal_id: "DEAL-001",
-      customer_id: undefined,
-      customer_name: undefined,
-      status: "提案中",
-      amount: 500000,
-      line_items: [
-        {
-          line_item_id: "LINE-001",
-          product_name: "製品A",
-          quantity: 2,
-          unit_price: 250000,
-        },
-      ],
-    };
+  test('当月商談が0件のとき売上合計0円として集計される', () => {
+    const targetMonth = '2024-01-01T00:00:00Z';
+    const emptyDealList = [];
 
-    expect(() =>
-      updateDealStatusToClose({
-        deal_id: deal_record.deal_id,
-        customer_id: deal_record.customer_id,
-        customer_name: deal_record.customer_name,
-        status: "成約",
-        amount: deal_record.amount,
-        line_items: deal_record.line_items,
-      })
-    ).toThrow(/顧客情報/);
+    const result = aggregateMonthlySalesRevenue(emptyDealList, targetMonth);
+
+    expect(result.totalRevenue).toBe(0);
+    expect(result.dealCount).toBe(0);
   });
 });

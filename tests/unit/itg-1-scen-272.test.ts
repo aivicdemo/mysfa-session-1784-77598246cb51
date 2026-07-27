@@ -1,72 +1,144 @@
-import { verifyInvoicePortalReflection } from "../../src/logic/it-1-3";
+import {
+  linkDealAndInvoice,
+} from "../../src/logic/it-1784969823049-1-1-1";
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
-  // SCEN-272: [error] 請求書ポータル反映リードタイム管理機能 - 未承認の請求書はポータルに反映されない
-  test("未承認の請求書はポータルに反映されず、承認後のみポータルに表示される", () => {
-    const invoice_id = "INV-20240415-001";
-    const customer_id = "CUST-12345";
-    const invoice_amount = 150000;
-    const invoice_date = "2024-04-15";
-    const approval_status_unapproved = "未承認";
-    const approval_status_approved = "承認";
+interface MockDocumentStorageAdapter {
+  uploadDocument: jest.Mock;
+  generateShareLink: jest.Mock;
+  deleteDocument: jest.Mock;
+}
 
-    // 手順1: 請求書管理画面で新規請求書を作成し、必要情報を入力
-    const created_invoice = {
-      invoice_id: invoice_id,
-      customer_id: customer_id,
-      amount: invoice_amount,
-      invoice_date: invoice_date,
-      status: approval_status_unapproved,
+interface MockNotificationServiceAdapter {
+  sendQuoteNotification: jest.Mock;
+  sendOrderNotification: jest.Mock;
+  sendInvoiceNotification: jest.Mock;
+  getDeliveryStatus: jest.Mock;
+}
+
+describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
+  // SCEN-272
+  test("商談ステータスが『受注』に更新されたとき、対応する請求書が1件存在し、請求金額と商談金額が完全一致する場合、紐付けが正常に成立する", async () => {
+    // テストデータの準備
+    const customerId = "CUST-001";
+    const customerName = "テスト株式会社";
+    const dealId = "DEAL-001";
+    const dealAmount = 100000;
+    const dealStatus = "受注";
+    const invoiceId = "INV-001";
+    const invoiceAmount = 100000;
+    const invoiceDate = new Date("2024-01-15T10:00:00Z");
+
+    // スタブの作成
+    const mockDocumentStorageAdapter: MockDocumentStorageAdapter = {
+      uploadDocument: jest.fn().mockResolvedValue({
+        documentId: "DOC-001",
+        storageUrl: "https://storage.example.com/documents/DOC-001",
+      }),
+      generateShareLink: jest.fn().mockResolvedValue({
+        shareLink: "https://storage.example.com/share/token123",
+        expiresAt: new Date("2024-01-16T10:00:00Z"),
+      }),
+      deleteDocument: jest.fn().mockResolvedValue({ success: true }),
     };
 
-    // 手順2: 未承認状態で顧客ポータルを確認
-    const portal_invoices_before_approval = {
-      invoices: [],
-      total_count: 0,
+    const mockNotificationServiceAdapter: MockNotificationServiceAdapter = {
+      sendQuoteNotification: jest.fn().mockResolvedValue({
+        messageId: "MSG-001",
+        status: "sent",
+      }),
+      sendOrderNotification: jest.fn().mockResolvedValue({
+        messageId: "MSG-002",
+        status: "sent",
+      }),
+      sendInvoiceNotification: jest.fn().mockResolvedValue({
+        messageId: "MSG-003",
+        status: "sent",
+      }),
+      getDeliveryStatus: jest.fn().mockResolvedValue({
+        messageId: "MSG-003",
+        deliveryStatus: "delivered",
+        openedAt: new Date("2024-01-15T11:30:00Z"),
+      }),
     };
 
-    // 期待結果: 未承認の請求書はポータルに表示されない
-    expect(portal_invoices_before_approval.total_count).toBe(0);
-    expect(portal_invoices_before_approval.invoices).toEqual([]);
-
-    // 手順3: 請求書を承認処理
-    const approved_invoice = {
-      ...created_invoice,
-      status: approval_status_approved,
+    // 商談レコード
+    const dealRecord = {
+      id: dealId,
+      customerId: customerId,
+      customerName: customerName,
+      amount: dealAmount,
+      status: dealStatus,
+      updatedAt: new Date("2024-01-15T10:00:00Z"),
     };
 
-    // 手順4: 承認後、顧客ポータルを確認
-    const portal_invoices_after_approval = {
-      invoices: [approved_invoice],
-      total_count: 1,
+    // 請求書レコード
+    const invoiceRecord = {
+      id: invoiceId,
+      customerId: customerId,
+      customerName: customerName,
+      amount: invoiceAmount,
+      issueDate: invoiceDate,
+      status: "issued",
     };
 
-    // 期待結果: 承認後の請求書はポータルに表示される
-    expect(portal_invoices_after_approval.total_count).toBe(1);
-    expect(portal_invoices_after_approval.invoices).toHaveLength(1);
-    expect(portal_invoices_after_approval.invoices[0]).toEqual({
-      invoice_id: invoice_id,
-      customer_id: customer_id,
-      amount: invoice_amount,
-      invoice_date: invoice_date,
-      status: approval_status_approved,
-    });
+    // リンク処理の実行
+    const linkResult = await linkDealAndInvoice(
+      dealRecord,
+      invoiceRecord,
+      mockDocumentStorageAdapter,
+      mockNotificationServiceAdapter
+    );
 
-    // ビジネスルール検証: 承認前後の一貫性を確認
-    const result = verifyInvoicePortalReflection({
-      invoice_id: invoice_id,
-      customer_id: customer_id,
-      amount: invoice_amount,
-      invoice_date: invoice_date,
-      status_before: approval_status_unapproved,
-      status_after: approval_status_approved,
-      portal_count_before: portal_invoices_before_approval.total_count,
-      portal_count_after: portal_invoices_after_approval.total_count,
-    });
+    // アサーション: リンクが成功したことを確認
+    expect(linkResult.isLinked).toBe(true);
+    expect(linkResult.dealId).toBe(dealId);
+    expect(linkResult.invoiceId).toBe(invoiceId);
 
-    expect(result.is_portal_hidden_before_approval).toBe(true);
-    expect(result.is_portal_visible_after_approval).toBe(true);
-    expect(result.verification_passed).toBe(true);
-    expect(result.invoice_reflection_lead_time_days).toBeLessThanOrEqual(1);
+    // アサーション: 金額が完全一致することを確認
+    expect(linkResult.dealAmount).toBe(100000);
+    expect(linkResult.invoiceAmount).toBe(100000);
+    expect(linkResult.amountMatches).toBe(true);
+
+    // アサーション: 紐付けステータスが『linked』と記録されていることを確認
+    expect(linkResult.linkStatus).toBe("linked");
+
+    // アサーション: 両者の関連性が1対1で明確に結合されていることを確認
+    expect(linkResult.linkedPairs).toStrictEqual([
+      {
+        dealId: dealId,
+        invoiceId: invoiceId,
+      },
+    ]);
+
+    // アサーション: DocumentStorageAdapter.uploadDocumentが1回呼び出されたことを確認
+    expect(mockDocumentStorageAdapter.uploadDocument).toHaveBeenCalledTimes(1);
+
+    // アサーション: NotificationServiceAdapter.sendInvoiceNotificationが1回呼び出されたことを確認
+    expect(
+      mockNotificationServiceAdapter.sendInvoiceNotification
+    ).toHaveBeenCalledTimes(1);
+
+    // アサーション: sendInvoiceNotificationが正しい引数で呼ばれたことを確認
+    expect(
+      mockNotificationServiceAdapter.sendInvoiceNotification
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceId: invoiceId,
+        customerId: customerId,
+        customerName: customerName,
+      })
+    );
+
+    // アサーション: uploadDocumentが正しい引数で呼ばれたことを確認
+    expect(mockDocumentStorageAdapter.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentType: "invoice",
+        invoiceId: invoiceId,
+      })
+    );
+
+    // アサーション: リンク完了時刻が記録されていることを確認
+    expect(linkResult.linkedAt).toBeDefined();
+    expect(typeof linkResult.linkedAt).toBe("object");
   });
 });

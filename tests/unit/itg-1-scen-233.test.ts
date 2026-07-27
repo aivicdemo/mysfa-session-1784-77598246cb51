@@ -1,36 +1,138 @@
-import { calculateROI } from "../../src/logic/it-1-3";
+import { updateDealStatusAndAttachBilling } from '../../src/logic/it-1-1';
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
+describe('見積・注文・請求書の自動生成と商談ステータス紐付け', () => {
   // SCEN-233
-  test("ライセンス費用対効果分析機能 - 自社システム運用コストがSalesforceライセンス費用を上回る場合、負のROIが正しく計算される", () => {
-    const salesforceMonthlyCost = 300000; // 月額30万円
-    const customSystemMonthlyCost = 500000; // 月額50万円
-    const analysisMonths = 12;
+  test('商談ステータスを成約に変更した場合、NotificationServiceAdapterでメール送信が失敗してもステータス更新は成功し、代替処理に切り替わる', async () => {
+    // Arrange: NotificationServiceAdapterのスタブを作成
+    const notificationServiceStub = {
+      sendInvoiceNotification: jest.fn().mockRejectedValue(
+        new Error('Email service unavailable')
+      ),
+      sendQuoteNotification: jest.fn(),
+      sendOrderNotification: jest.fn(),
+      getDeliveryStatus: jest.fn(),
+    };
 
-    const result = calculateROI({
-      salesforceLicenseCost: salesforceMonthlyCost,
-      customSystemOperationCost: customSystemMonthlyCost,
-      analysisPeriodMonths: analysisMonths,
+    // Arrange: データベースストアのスタブを作成
+    const mockDealStore = {
+      getDeal: jest.fn().mockResolvedValue({
+        deal_id: 'DEAL-001',
+        customer_id: 'CUST-123',
+        amount: 1000000,
+        status: 'negotiation',
+        created_at: '2024-01-15T09:00:00Z',
+      }),
+      updateDeal: jest.fn().mockResolvedValue({
+        deal_id: 'DEAL-001',
+        customer_id: 'CUST-123',
+        amount: 1000000,
+        status: 'closed',
+        updated_at: '2024-01-15T11:00:00Z',
+      }),
+    };
+
+    const mockInvoiceStore = {
+      getInvoiceByDealId: jest.fn().mockResolvedValue({
+        invoice_id: 'INV-001',
+        deal_id: 'DEAL-001',
+        customer_id: 'CUST-123',
+        amount: 1000000,
+        status: 'draft',
+        created_at: '2024-01-15T09:30:00Z',
+      }),
+      updateInvoiceStatus: jest.fn().mockResolvedValue({
+        invoice_id: 'INV-001',
+        deal_id: 'DEAL-001',
+        customer_id: 'CUST-123',
+        amount: 1000000,
+        status: 'confirmed',
+        updated_at: '2024-01-15T11:00:00Z',
+      }),
+    };
+
+    const mockNotificationQueueStore = {
+      addToQueue: jest.fn().mockResolvedValue({
+        queue_id: 'QUEUE-001',
+        recipient: 'CUST-123',
+        type: 'invoice',
+        status: 'pending',
+        created_at: '2024-01-15T11:00:00Z',
+      }),
+    };
+
+    // Act: 商談ステータス更新APIを呼び出し
+    const result = await updateDealStatusAndAttachBilling(
+      {
+        deal_id: 'DEAL-001',
+        new_status: 'closed',
+      },
+      notificationServiceStub,
+      mockDealStore,
+      mockInvoiceStore,
+      mockNotificationQueueStore
+    );
+
+    // Assert: NotificationServiceAdapterが呼び出されたことを確認
+    expect(notificationServiceStub.sendInvoiceNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer_id: 'CUST-123',
+        invoice_id: 'INV-001',
+      })
+    );
+
+    // Assert: 商談ステータスが更新されたことを確認
+    expect(mockDealStore.updateDeal).toHaveBeenCalledWith('DEAL-001', {
+      status: 'closed',
     });
 
-    // ROI = (Salesforceライセンス費用 - 自社システム運用コスト) / 自社システム運用コスト × 100
-    // ROI = (300000 - 500000) / 500000 × 100 = -200000 / 500000 × 100 = -40
-    const expectedROI = -40;
+    // Assert: 請求レコードステータスが確定に更新されたことを確認
+    expect(mockInvoiceStore.updateInvoiceStatus).toHaveBeenCalledWith(
+      'INV-001',
+      'confirmed'
+    );
 
-    expect(result.roiPercentage).toBe(expectedROI);
-    expect(result.isNegativeROI).toBe(true);
-    expect(result.warningMessage).toMatch(/負のROI|削減効果がない|コスト超過/);
+    // Assert: メール送信キューにレコードが保存されたことを確認
+    expect(mockNotificationQueueStore.addToQueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipient: 'CUST-123',
+        type: 'invoice',
+        status: 'pending',
+      })
+    );
 
-    // 年間コスト比較の検証
-    const salesforceAnnualCost = salesforceMonthlyCost * analysisMonths; // 360万円
-    const customSystemAnnualCost = customSystemMonthlyCost * analysisMonths; // 600万円
+    // Assert: APIレスポンスのHTTPステータスコードは200
+    expect(result.status_code).toBe(200);
 
-    expect(result.salesforceTotalCost).toBe(salesforceAnnualCost);
-    expect(result.customSystemTotalCost).toBe(customSystemAnnualCost);
+    // Assert: 商談レコードのステータスは「成約」に更新されている
+    expect(result.deal).toEqual(
+      expect.objectContaining({
+        deal_id: 'DEAL-001',
+        status: 'closed',
+      })
+    );
 
-    // コスト差分が負（自社システムが高い）ことを確認
-    const costDifference = salesforceAnnualCost - customSystemAnnualCost; // -240万円
-    expect(costDifference).toBe(-2400000);
-    expect(result.costDifference).toBe(costDifference);
+    // Assert: 請求レコードのステータスは「確定」に更新されている
+    expect(result.invoice).toEqual(
+      expect.objectContaining({
+        invoice_id: 'INV-001',
+        status: 'confirmed',
+      })
+    );
+
+    // Assert: APIレスポンスボディに警告メッセージが含まれている
+    expect(result.warning_message).toMatch(/メール送信に失敗しました/);
+    expect(result.warning_message).toMatch(/手動で顧客に連絡してください/);
+
+    // Assert: メール送信キュー情報が結果に含まれている
+    expect(result.notification_queue).toEqual(
+      expect.objectContaining({
+        recipient: 'CUST-123',
+        type: 'invoice',
+        status: 'pending',
+      })
+    );
+
+    // Assert: 代替処理が実行されたことを確認
+    expect(result.fallback_executed).toBe(true);
   });
 });

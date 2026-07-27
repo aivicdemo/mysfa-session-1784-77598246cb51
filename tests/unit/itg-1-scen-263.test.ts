@@ -1,148 +1,79 @@
-import { detectUnbilledAndDelayedCases } from "../../src/logic/it-1784969823049-1-1-1";
+import { describe, test, expect, beforeEach, jest } from "@jest/globals";
+import { validateInvoiceContent } from "../../src/logic/it-1-1";
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
+// Mock外部サービス依存性
+interface DocumentStorageAdapterMock {
+  uploadDocument: jest.Mock;
+  generateShareLink: jest.Mock;
+  deleteDocument: jest.Mock;
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  status: string;
+  errorMessage: string;
+}
+
+describe("見積・注文・請求書の自動生成機能 - 帳票内容検証", () => {
+  let documentStorageAdapterMock: DocumentStorageAdapterMock;
+
+  beforeEach(() => {
+    documentStorageAdapterMock = {
+      uploadDocument: jest.fn().mockResolvedValue({
+        fileId: "test-file-id-001",
+        webViewLink: "https://drive.google.com/file/d/test-file-id-001/view",
+      }),
+      generateShareLink: jest.fn().mockResolvedValue({
+        shareLink: "https://drive.google.com/file/d/test-file-id-001/view?usp=sharing",
+        expiresAt: new Date("2025-01-20T12:00:00Z"),
+      }),
+      deleteDocument: jest.fn().mockResolvedValue({ success: true }),
+    };
+  });
+
   // SCEN-263
-  test("未請求・遅延案件自動検出機能 - 商談が受注ステータスで請求実行タイミングに達した場合に未請求案件と遅延案件が自動検出される", () => {
-    const today = new Date("2024-04-15T00:00:00Z");
-    const yesterday = new Date("2024-04-14T00:00:00Z");
-    const tomorrow = new Date("2024-04-16T00:00:00Z");
+  test("商談金額が業務上の上限値の場合、帳票検証は成功し、DocumentStorageAdapterへのuploadDocument呼び出しが実行される", async () => {
+    const invoiceContentInput = {
+      customerId: "CUST-20250117-001",
+      customerName: "テスト顧客株式会社",
+      dealAmount: 999999999,
+      dealDescription: "大型システム導入案件",
+      lineItems: [
+        {
+          itemId: "ITEM-001",
+          itemName: "基本システムライセンス",
+          quantity: 1,
+          unitPrice: 500000000,
+          amount: 500000000,
+        },
+        {
+          itemId: "ITEM-002",
+          itemName: "カスタマイズ・導入支援",
+          quantity: 1,
+          unitPrice: 499999999,
+          amount: 499999999,
+        },
+      ],
+      issueDate: new Date("2025-01-17T09:00:00Z"),
+      dueDate: new Date("2025-02-17T23:59:59Z"),
+      notes: "最大規模案件の検証テスト",
+    };
 
-    const dealData = [
-      {
-        dealId: "DEAL-001",
-        customerId: "CUST-A",
-        customerName: "ABC株式会社",
-        status: "受注",
-        amount: 500000,
-        billingScheduledDate: yesterday,
-        invoiceIssuedDate: null,
-        invoiceId: null,
-      },
-      {
-        dealId: "DEAL-002",
-        customerId: "CUST-B",
-        customerName: "XYZ株式会社",
-        status: "受注",
-        amount: 300000,
-        billingScheduledDate: new Date("2024-04-10T00:00:00Z"),
-        invoiceIssuedDate: null,
-        invoiceId: null,
-      },
-      {
-        dealId: "DEAL-003",
-        customerId: "CUST-C",
-        customerName: "DEF株式会社",
-        status: "受注",
-        amount: 200000,
-        billingScheduledDate: tomorrow,
-        invoiceIssuedDate: null,
-        invoiceId: null,
-      },
-      {
-        dealId: "DEAL-004",
-        customerId: "CUST-D",
-        customerName: "GHI株式会社",
-        status: "受注",
-        amount: 150000,
-        billingScheduledDate: new Date("2024-04-12T00:00:00Z"),
-        invoiceIssuedDate: new Date("2024-04-13T00:00:00Z"),
-        invoiceId: "INV-001",
-      },
-      {
-        dealId: "DEAL-005",
-        customerId: "CUST-E",
-        customerName: "JKL株式会社",
-        status: "提案中",
-        amount: 100000,
-        billingScheduledDate: yesterday,
-        invoiceIssuedDate: null,
-        invoiceId: null,
-      },
-    ];
-
-    const detectionResult = detectUnbilledAndDelayedCases(dealData, today);
-
-    expect(detectionResult).toBeDefined();
-    expect(detectionResult.unbilledCases).toBeDefined();
-    expect(detectionResult.delayedCases).toBeDefined();
-
-    expect(detectionResult.unbilledCases).toHaveLength(2);
-    expect(detectionResult.unbilledCases).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dealId: "DEAL-001",
-          customerId: "CUST-A",
-          customerName: "ABC株式会社",
-          status: "受注",
-          amount: 500000,
-          billingScheduledDate: yesterday,
-          invoiceIssuedDate: null,
-          invoiceId: null,
-        }),
-        expect.objectContaining({
-          dealId: "DEAL-002",
-          customerId: "CUST-B",
-          customerName: "XYZ株式会社",
-          status: "受注",
-          amount: 300000,
-          billingScheduledDate: new Date("2024-04-10T00:00:00Z"),
-          invoiceIssuedDate: null,
-          invoiceId: null,
-        }),
-      ])
+    const validationResult: ValidationResult = await validateInvoiceContent(
+      invoiceContentInput,
+      documentStorageAdapterMock
     );
 
-    expect(detectionResult.delayedCases).toHaveLength(2);
-    expect(detectionResult.delayedCases).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dealId: "DEAL-001",
-          customerId: "CUST-A",
-          customerName: "ABC株式会社",
-          status: "受注",
-          amount: 500000,
-          billingScheduledDate: yesterday,
-          daysOverdue: 1,
-        }),
-        expect.objectContaining({
-          dealId: "DEAL-002",
-          customerId: "CUST-B",
-          customerName: "XYZ株式会社",
-          status: "受注",
-          amount: 300000,
-          billingScheduledDate: new Date("2024-04-10T00:00:00Z"),
-          daysOverdue: 5,
-        }),
-      ])
-    );
+    expect(validationResult.isValid).toBe(true);
+    expect(validationResult.status).toBe("正常");
+    expect(validationResult.errorMessage).toBe("");
 
-    expect(detectionResult.totalUnbilledAmount).toBe(800000);
-    expect(detectionResult.totalDelayedAmount).toBe(800000);
-
-    const deal001 = detectionResult.unbilledCases.find(
-      (c) => c.dealId === "DEAL-001"
+    expect(documentStorageAdapterMock.uploadDocument).toHaveBeenCalledTimes(1);
+    expect(documentStorageAdapterMock.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileType: "application/pdf",
+        fileName: expect.stringMatching(/^invoice_.+\.pdf$/),
+      })
     );
-    expect(deal001).toBeDefined();
-    expect(deal001?.dealId).toBe("DEAL-001");
-    expect(deal001?.customerId).toBe("CUST-A");
-    expect(deal001?.customerName).toBe("ABC株式会社");
-    expect(deal001?.status).toBe("受注");
-    expect(deal001?.amount).toBe(500000);
-    expect(deal001?.billingScheduledDate).toEqual(yesterday);
-
-    const deal004 = detectionResult.unbilledCases.find(
-      (c) => c.dealId === "DEAL-004"
-    );
-    expect(deal004).toBeUndefined();
-
-    const deal005 = detectionResult.unbilledCases.find(
-      (c) => c.dealId === "DEAL-005"
-    );
-    expect(deal005).toBeUndefined();
-
-    const deal003 = detectionResult.unbilledCases.find(
-      (c) => c.dealId === "DEAL-003"
-    );
-    expect(deal003).toBeUndefined();
   });
 });

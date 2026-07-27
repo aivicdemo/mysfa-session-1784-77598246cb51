@@ -1,55 +1,37 @@
-import { describe, test, expect, beforeEach, afterEach } from "@jest/globals";
-import {
-  updateDealStatusWithValidation,
-  saveDealCustomerInteractionRecord,
-} from "../../src/logic/it-1-2";
+import { aggregateDealsByCustomerAndStatus } from '../../src/logic/it-1-3';
 
-const fetchMock = require("jest-fetch-mock");
-
-describe("商談ステータスと請求データの紐付け・可視化", () => {
-  beforeEach(() => {
-    fetchMock.resetMocks();
-  });
-
-  afterEach(() => {
-    fetchMock.resetMocks();
-  });
-
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-185
-  test("顧客対応記録が空文字列の場合、記録が保存されずエラーが返される", async () => {
-    const deal_id = "DEAL-20240115-001";
-    const customer_id = "CUST-9999";
-    const interaction_record = "";
-    const deal_status = "成約";
+  test('顧客別商談進捗集計機能 - 提案中ステータスの商談が複数件のとき、合計金額が正確に集計される', () => {
+    const customerId = 'CUST-001';
+    const dealProposingStatus = '提案中';
 
-    const error_response = {
-      status: "error",
-      code: "INVALID_INTERACTION_RECORD",
-      message: "顧客対応記録",
-    };
+    const deals = [
+      {
+        deal_id: 'DEAL-101',
+        customer_id: customerId,
+        status: dealProposingStatus,
+        amount: 500000,
+      },
+      {
+        deal_id: 'DEAL-102',
+        customer_id: customerId,
+        status: dealProposingStatus,
+        amount: 750000,
+      },
+      {
+        deal_id: 'DEAL-103',
+        customer_id: customerId,
+        status: dealProposingStatus,
+        amount: 1200000,
+      },
+    ];
 
-    fetchMock.mockResponseOnce(JSON.stringify(error_response), {
-      status: 400,
-    });
+    const result = aggregateDealsByCustomerAndStatus(deals, customerId, dealProposingStatus);
 
-    const result = await saveDealCustomerInteractionRecord({
-      deal_id,
-      customer_id,
-      interaction_record,
-      deal_status,
-    });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    const call_args = fetchMock.mock.calls[0];
-    expect(call_args[0]).toContain("/deals/customer-interaction");
-    expect(call_args[1].method).toBe("POST");
-
-    expect(result).toMatchObject({
-      status: "error",
-      code: "INVALID_INTERACTION_RECORD",
-    });
-
-    expect(result.message).toMatch(/顧客対応記録/);
+    expect(result.total_amount).toBe(2450000);
+    expect(result.deal_count).toBe(3);
+    expect(result.customer_id).toBe(customerId);
+    expect(result.status).toBe(dealProposingStatus);
   });
 });

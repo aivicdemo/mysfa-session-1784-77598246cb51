@@ -1,24 +1,41 @@
-import { detectDealStatusAndInvoiceDiscrepancy } from "../../src/logic/it-1784969823049-1-1-1";
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-188
-  test("売上計上予定日と実際の請求日のズレが0日の場合、ズレなしとして判定される", () => {
-    const deal_expected_revenue_date = new Date("2024-01-15T00:00:00Z");
-    const invoice_issued_date = new Date("2024-01-15T00:00:00Z");
-    const deal_status = "受注";
-    const invoice_status = "発行済み";
+  test('顧客別商談進捗集計機能 - 交渉中ステータスの商談が複数件のとき、合計金額が正確に集計される', () => {
+    const customerId = 'CUST001';
+    const deals = [
+      {
+        dealId: 'DEAL001',
+        customerId: customerId,
+        amount: 500000,
+        status: '交渉中'
+      },
+      {
+        dealId: 'DEAL002',
+        customerId: customerId,
+        amount: 750000,
+        status: '交渉中'
+      },
+      {
+        dealId: 'DEAL003',
+        customerId: customerId,
+        amount: 300000,
+        status: '交渉中'
+      }
+    ];
 
-    const result = detectDealStatusAndInvoiceDiscrepancy({
-      deal_status: deal_status,
-      deal_expected_revenue_date: deal_expected_revenue_date,
-      invoice_issued_date: invoice_issued_date,
-      invoice_status: invoice_status,
-    });
+    const result = aggregateDealProgressByCustomer(customerId, deals);
 
-    expect(result.discrepancy_days).toBe(0);
-    expect(result.discrepancy_type).toBe("なし");
-    expect(result.reconciliation_status).toBe("正常");
-    expect(result.has_anomaly_flag).toBe(false);
-    expect(result.warning_message).toBe("");
+    expect(result.customerId).toBe(customerId);
+    expect(result.statusBreakdown).toBeDefined();
+
+    const negotiatingDeals = result.statusBreakdown.find(
+      (breakdown) => breakdown.status === '交渉中'
+    );
+
+    expect(negotiatingDeals).toBeDefined();
+    expect(negotiatingDeals?.count).toBe(3);
+    expect(negotiatingDeals?.totalAmount).toBe(1550000);
   });
 });

@@ -1,43 +1,18 @@
-import { validateInvoiceTargetData } from "../../src/logic/it-1784969823049-1-1-1";
+import { updateDealStatusToContracted } from "../../src/logic/it-1784969823049-2-1-1";
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
+describe("商談レコードの進捗ステータスと提案内容の入力・保存機能", () => {
   // SCEN-210
-  test("請求対象データ妥当性検証 - 顧客IDが重複する複数の請求対象データが重複として検出される", () => {
-    const invoiceTargetData = [
-      {
-        customerId: "CUST-001",
-        customerName: "顧客A",
-        invoiceAmount: 100000,
-        invoiceDate: "2024-04-15",
-        dealStatus: "受注",
-      },
-      {
-        customerId: "CUST-001",
-        customerName: "顧客A",
-        invoiceAmount: 150000,
-        invoiceDate: "2024-04-16",
-        dealStatus: "受注",
-      },
-      {
-        customerId: "CUST-002",
-        customerName: "顧客B",
-        invoiceAmount: 200000,
-        invoiceDate: "2024-04-17",
-        dealStatus: "完了",
-      },
-    ];
+  test("商談ステータスを成約に変更する際、必須項目チェックで顧客名が欠けている場合にステータス更新が拒否される", () => {
+    const deal_record = {
+      deal_id: "DEAL-001",
+      customer_name: null,
+      status: "進行中",
+      amount: 500000,
+      details: "商品A 5個",
+    };
 
-    expect(() => validateInvoiceTargetData(invoiceTargetData)).toThrow(
-      /重複/
-    );
-
-    try {
-      validateInvoiceTargetData(invoiceTargetData);
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        expect(error.message).toMatch(/CUST-001/);
-        expect(error.message).toMatch(/2/);
-      }
-    }
+    expect(() =>
+      updateDealStatusToContracted(deal_record)
+    ).toThrow(/顧客名/);
   });
 });

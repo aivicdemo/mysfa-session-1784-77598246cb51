@@ -1,42 +1,38 @@
-import { detectDealStatusAndInvoiceMismatch } from '../../src/logic/it-1784969823049-1-1-1';
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
-  // SCEN-187: [error] 売上計上予定日と実際の請求日のズレが3日以上ある場合にズレ検出される
-  test('売上計上予定日と実際の請求日のズレが3日以上の場合、ズレ検出アラートが表示されること', () => {
-    const deal = {
-      deal_id: 'DEAL-001',
-      deal_status: '受注確定',
-      customer_id: 'CUST-001',
-      customer_name: 'テスト顧客',
-      deal_amount: 1000000,
-      scheduled_revenue_date: new Date('2024-01-15T00:00:00Z'),
-      invoice_issued_date: new Date('2024-01-18T00:00:00Z'),
-      invoice_status: '発行済',
-      invoice_amount: 1000000,
-    };
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-187
+  test('交渉中ステータスの商談が1件で金額が0円を超えるとき、その金額が正確に集計される', () => {
+    const customerId = 'CUST_A_001';
+    const customerName = 'Customer A';
+    const dealAmount = 50000;
+    const dealStatus = '交渉中';
 
-    const result = detectDealStatusAndInvoiceMismatch([deal]);
+    const mockDeals = [
+      {
+        dealId: 'DEAL_001',
+        customerId: customerId,
+        customerName: customerName,
+        status: dealStatus,
+        amount: dealAmount,
+        createdAt: '2024-01-15T10:00:00Z'
+      }
+    ];
 
-    expect(result).toEqual({
-      mismatch_detected: true,
-      mismatch_count: 1,
-      mismatch_details: [
-        {
-          deal_id: 'DEAL-001',
-          customer_id: 'CUST-001',
-          customer_name: 'テスト顧客',
-          deal_status: '受注確定',
-          scheduled_revenue_date: '2024-01-15',
-          invoice_issued_date: '2024-01-18',
-          mismatch_days: 3,
-          mismatch_type: 'ズレあり',
-          alert_message: '売上計上予定日と実際の請求日のズレが3日以上です',
-        },
-      ],
-    });
-    expect(result.mismatch_detected).toBe(true);
-    expect(result.mismatch_count).toBe(1);
-    expect(result.mismatch_details[0].mismatch_days).toBe(3);
-    expect(result.mismatch_details[0].mismatch_type).toBe('ズレあり');
+    const result = aggregateDealProgressByCustomer(mockDeals);
+
+    expect(result).toBeDefined();
+    expect(result).toHaveLength(1);
+
+    const customerResult = result[0];
+    expect(customerResult.customerId).toBe(customerId);
+    expect(customerResult.customerName).toBe(customerName);
+
+    const negotiationProgress = customerResult.progressByStatus.find(
+      (status_item) => status_item.status === dealStatus
+    );
+    expect(negotiationProgress).toBeDefined();
+    expect(negotiationProgress.count).toBe(1);
+    expect(negotiationProgress.totalAmount).toBe(50000);
   });
 });

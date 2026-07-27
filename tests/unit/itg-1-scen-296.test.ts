@@ -1,175 +1,47 @@
-import { approveInvestmentDecision } from "../../src/logic/it-1-3";
+import { getDueDateDiscrepancy } from '../../src/logic/it-1784969823049-1-1-1';
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
-  // SCEN-296
-  test("投資判断承認ロジック - 経営者が設定したROI閾値・回収期間・リスク許容度の基準に対して、試算結果が合致する場合に承認判定される", () => {
-    // 経営者が設定した基準値
-    const criteria = {
-      roiThreshold: 150,
-      recoveryPeriodMonths: 24,
-      riskToleranceLevel: 3,
-    };
+describe('商談ステータスと請求データの紐付け・可視化 - 年度またぎケース', () => {
+  test('SCEN-296: 売上計上予定日が年度をまたぐとき、期日ズレの判定が正常に実行される', () => {
+    // Arrange: テスト日時を2024年3月10日に固定
+    const mockCurrentDate = new Date('2024-03-10T00:00:00Z');
+    const originalDateNow = Date.now;
+    Date.now = jest.fn(() => mockCurrentDate.getTime());
 
-    // 投資案件の試算結果（基準値以内）
-    const trialResult = {
-      roi: 145,
-      recoveryPeriodMonths: 18,
-      riskValue: 2,
-    };
+    try {
+      // 商談レコード
+      const dealRecord = {
+        dealId: 'DEAL-20240001',
+        dealName: '年度またぎ商談',
+        revenueRecognitionDate: new Date('2024-04-15T00:00:00Z'),
+        status: 'COMPLETED'
+      };
 
-    const result = approveInvestmentDecision(criteria, trialResult);
+      // 請求データレコード
+      const invoiceRecord = {
+        invoiceId: 'INV-20240001',
+        invoicePlannedDate: new Date('2024-03-31T00:00:00Z'),
+        amount: 100000,
+        invoiceStatus: 'UNPAID'
+      };
 
-    expect(result.status).toBe("承認");
-    expect(result.roiMatch).toBe(true);
-    expect(result.recoveryPeriodMatch).toBe(true);
-    expect(result.riskToleranceMatch).toBe(true);
-    expect(result.approved).toBe(true);
-  });
+      // Act: 期日ズレ判定ロジックを呼び出し
+      const result = getDueDateDiscrepancy(dealRecord, invoiceRecord);
 
-  // 試算結果がROI閾値を超える場合
-  test("試算結果がROI閾値を超える場合は不承認", () => {
-    const criteria = {
-      roiThreshold: 150,
-      recoveryPeriodMonths: 24,
-      riskToleranceLevel: 3,
-    };
-
-    const trialResult = {
-      roi: 155,
-      recoveryPeriodMonths: 18,
-      riskValue: 2,
-    };
-
-    const result = approveInvestmentDecision(criteria, trialResult);
-
-    expect(result.status).toBe("不承認");
-    expect(result.roiMatch).toBe(false);
-    expect(result.approved).toBe(false);
-  });
-
-  // 試算結果が回収期間を超える場合
-  test("試算結果が回収期間を超える場合は不承認", () => {
-    const criteria = {
-      roiThreshold: 150,
-      recoveryPeriodMonths: 24,
-      riskToleranceLevel: 3,
-    };
-
-    const trialResult = {
-      roi: 145,
-      recoveryPeriodMonths: 26,
-      riskValue: 2,
-    };
-
-    const result = approveInvestmentDecision(criteria, trialResult);
-
-    expect(result.status).toBe("不承認");
-    expect(result.recoveryPeriodMatch).toBe(false);
-    expect(result.approved).toBe(false);
-  });
-
-  // 試算結果がリスク許容度を超える場合
-  test("試算結果がリスク許容度を超える場合は不承認", () => {
-    const criteria = {
-      roiThreshold: 150,
-      recoveryPeriodMonths: 24,
-      riskToleranceLevel: 3,
-    };
-
-    const trialResult = {
-      roi: 145,
-      recoveryPeriodMonths: 18,
-      riskValue: 4,
-    };
-
-    const result = approveInvestmentDecision(criteria, trialResult);
-
-    expect(result.status).toBe("不承認");
-    expect(result.riskToleranceMatch).toBe(false);
-    expect(result.approved).toBe(false);
-  });
-
-  // すべての基準値に対して試算結果が境界値で一致する場合
-  test("試算結果がすべての基準値と正確に一致する場合は承認", () => {
-    const criteria = {
-      roiThreshold: 150,
-      recoveryPeriodMonths: 24,
-      riskToleranceLevel: 3,
-    };
-
-    const trialResult = {
-      roi: 150,
-      recoveryPeriodMonths: 24,
-      riskValue: 3,
-    };
-
-    const result = approveInvestmentDecision(criteria, trialResult);
-
-    expect(result.status).toBe("承認");
-    expect(result.roiMatch).toBe(true);
-    expect(result.recoveryPeriodMatch).toBe(true);
-    expect(result.riskToleranceMatch).toBe(true);
-    expect(result.approved).toBe(true);
-  });
-
-  // 複数の基準を同時に超える場合
-  test("複数の基準値を同時に超える場合は不承認", () => {
-    const criteria = {
-      roiThreshold: 150,
-      recoveryPeriodMonths: 24,
-      riskToleranceLevel: 3,
-    };
-
-    const trialResult = {
-      roi: 160,
-      recoveryPeriodMonths: 30,
-      riskValue: 5,
-    };
-
-    const result = approveInvestmentDecision(criteria, trialResult);
-
-    expect(result.status).toBe("不承認");
-    expect(result.roiMatch).toBe(false);
-    expect(result.recoveryPeriodMatch).toBe(false);
-    expect(result.riskToleranceMatch).toBe(false);
-    expect(result.approved).toBe(false);
-  });
-
-  // 基準値がnullまたはundefinedの場合はエラー
-  test("基準値が不正な場合はエラーを発生させる", () => {
-    const invalidCriteria = {
-      roiThreshold: null,
-      recoveryPeriodMonths: 24,
-      riskToleranceLevel: 3,
-    };
-
-    const trialResult = {
-      roi: 145,
-      recoveryPeriodMonths: 18,
-      riskValue: 2,
-    };
-
-    expect(() =>
-      approveInvestmentDecision(invalidCriteria as any, trialResult)
-    ).toThrow(/ROI閾値/);
-  });
-
-  // 試算結果が不正な場合はエラー
-  test("試算結果が不正な場合はエラーを発生させる", () => {
-    const criteria = {
-      roiThreshold: 150,
-      recoveryPeriodMonths: 24,
-      riskToleranceLevel: 3,
-    };
-
-    const invalidTrialResult = {
-      roi: undefined,
-      recoveryPeriodMonths: 18,
-      riskValue: 2,
-    };
-
-    expect(() =>
-      approveInvestmentDecision(criteria, invalidTrialResult as any)
-    ).toThrow(/試算結果/);
+      // Assert: 戻り値を検証
+      // 日数差分: 2024-04-15 - 2024-03-31 = 15日
+      expect(result.discrepancyDays).toBe(15);
+      
+      // 年度境界をまたぐ: true (3月31日から4月15日は会計年度の変わり目を通る)
+      expect(result.isAcrossYearBoundary).toBe(true);
+      
+      // 期日ズレタイプ: ADVANCE (売上計上予定日が請求予定日より後 = 期日前払い)
+      expect(result.discrepancyType).toBe('ADVANCE');
+      
+      // 判定結果: VALID (年度境界をまたいでも日付比較が正常に実行され、ズレが妥当と判定される)
+      expect(result.judgement).toBe('VALID');
+    } finally {
+      // Cleanup: Date.now を元に戻す
+      Date.now = originalDateNow;
+    }
   });
 });

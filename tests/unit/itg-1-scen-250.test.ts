@@ -1,19 +1,21 @@
-import { describe, test, expect } from "@jest/globals";
-import { validateInvoiceApproval } from "../../src/logic/it-1784969823049-1-1-1";
+import { validateQuoteContent } from '../../src/logic/it-1-1';
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
-  // SCEN-250: [error] 請求書承認検証機能 - 請求明細行が空の請求書を承認時に検出してエラーを返す
-  test("請求明細行が空の請求書を承認時にエラーを返す", () => {
-    const invoiceData = {
-      invoiceId: "INV-20240415-001",
-      customerId: "CUST-12345",
-      customerName: "株式会社テスト顧客",
-      invoiceDate: "2024-04-15",
-      totalAmount: 150000,
-      invoiceLines: [],
-      status: "PENDING_APPROVAL",
+describe('見積・注文・請求書の自動生成と商談ステータス紐付け', () => {
+  // SCEN-250
+  test('帳票内容検証機能 - 見積明細が0行（明細なし）の場合、警告を表示する', () => {
+    const quoteData = {
+      customerId: 'CUST001',
+      customerName: '株式会社サンプル',
+      quoteDate: new Date('2024-01-15T11:00:00Z'),
+      quoteNumber: 'QT20240115001',
+      lines: [],
+      totalAmount: 0,
     };
 
-    expect(() => validateInvoiceApproval(invoiceData)).toThrow(/請求明細/);
+    const result = validateQuoteContent(quoteData);
+
+    expect(result.isValid).toBe(false);
+    expect(result.warnings).toContain(/見積明細が入力されていません/);
+    expect(result.canGenerate).toBe(false);
   });
 });

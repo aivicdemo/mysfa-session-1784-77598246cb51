@@ -1,66 +1,50 @@
-import { refreshCustomerRecordCache } from "../../src/logic/it-1";
+import { getMonthlyOrderCount, getProgressNumerator } from "../../src/logic/it-1-3";
 
-describe("顧客レコード画面のキャッシュ自動更新機能", () => {
+describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
   // SCEN-161
-  test("データベース再取得に失敗した場合にエラーが適切に処理される", async () => {
-    const fetchMock = require("jest-fetch-mock");
-    fetchMock.enableMocks();
+  test("当月受注件数と進捗率の整合性 - 受注件数の計算ロジックと進捗率分子の計算ロジックが同じ商談セットを参照する", () => {
+    const currentMonth = "2024-01";
 
-    // キャッシュデータ（既存データ）
-    const existingCacheData = {
-      customerId: "CUST-001",
-      customerName: "テスト株式会社",
-      lastUpdated: "2024-01-15T10:00:00Z",
-      dealHistory: [
-        {
-          dealId: "DEAL-001",
-          dealName: "提案A",
-          status: "初期接触",
-          amount: 1000000,
-          timestamp: "2024-01-10T09:00:00Z",
-        },
-      ],
-      activityHistory: [
-        {
-          activityId: "ACT-001",
-          activityType: "メール",
-          description: "初回接触メール送信",
-          timestamp: "2024-01-09T14:30:00Z",
-        },
-      ],
-    };
+    const dealDataset = [
+      {
+        id: "deal_001",
+        month: currentMonth,
+        status: "受注",
+        amount: 1000000,
+      },
+      {
+        id: "deal_002",
+        month: currentMonth,
+        status: "受注",
+        amount: 500000,
+      },
+      {
+        id: "deal_003",
+        month: currentMonth,
+        status: "提案中",
+        amount: 300000,
+      },
+    ];
 
-    const cacheExpiryTime = new Date("2024-01-15T11:00:00Z").getTime();
-    const currentTime = new Date("2024-01-15T11:05:00Z").getTime();
-    const userId = "USER-001";
-    const customerId = "CUST-001";
+    const monthlyOrderCount = getMonthlyOrderCount(dealDataset, currentMonth);
+    const progressNumerator = getProgressNumerator(dealDataset, currentMonth);
 
-    // データベース取得失敗をシミュレート
-    fetchMock.resetMocks();
-    fetchMock.mockRejectOnce(new Error("データベース接続エラー"));
+    expect(monthlyOrderCount).toBe(2);
 
-    const result = await refreshCustomerRecordCache({
-      customerId,
-      userId,
-      existingCacheData,
-      cacheExpiryTime,
-      currentTime,
-    });
+    expect(progressNumerator).toBe(2);
 
-    // エラーがキャッチされている
-    expect(result.success).toBe(false);
-    expect(result.errorCode).toBe("DB_CONNECTION_FAILED");
+    expect(monthlyOrderCount).toBe(progressNumerator);
 
-    // エラーメッセージが分かりやすい
-    expect(result.errorMessage).toMatch(/データベース/);
+    const orderCountFilteredDeals = dealDataset.filter(
+      (deal) => deal.month === currentMonth && deal.status === "受注"
+    );
+    expect(orderCountFilteredDeals.length).toBe(2);
 
-    // エラーログが記録されている
-    expect(result.errorLogged).toBe(true);
+    const progressNumeratorFilteredDeals = dealDataset.filter(
+      (deal) => deal.month === currentMonth && deal.status === "受注"
+    );
+    expect(progressNumeratorFilteredDeals.length).toBe(2);
 
-    // 既存のキャッシュデータが保持されている
-    expect(result.cachedData).toEqual(existingCacheData);
-
-    // システムが継続動作するための情報を返す
-    expect(result.shouldContinueWithCache).toBe(true);
+    expect(orderCountFilteredDeals).toEqual(progressNumeratorFilteredDeals);
   });
 });

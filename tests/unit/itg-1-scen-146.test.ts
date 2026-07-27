@@ -1,99 +1,85 @@
-import { filterPurchaseHistoryByPeriod } from "../../src/logic/it-1";
+import { classifyDealsByStatus } from "../../src/logic/it-1-3";
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
+describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
   // SCEN-146
-  test("[normal] 過去購買履歴フィルタリング機能 - 設定された対象期間内の購買履歴のみが正しくフィルタリングされて表示される", () => {
-    const purchase_history = [
+  test("当月商談ステータス分類機能 - 同じステータスを持つ複数商談が同じカテゴリとして集計される", () => {
+    const testDeals = [
       {
-        purchase_id: "PH001",
-        customer_id: "CUST001",
-        purchase_date: new Date("2023-12-15"),
-        amount: 50000,
-        product_name: "製品A",
+        id: "deal_001",
+        customerId: "cust_001",
+        customerName: "ABC企業",
+        status: "提案中",
+        amount: 150000,
+        dealDate: "2024-01-15",
       },
       {
-        purchase_id: "PH002",
-        customer_id: "CUST001",
-        purchase_date: new Date("2024-01-10"),
+        id: "deal_002",
+        customerId: "cust_002",
+        customerName: "XYZ企業",
+        status: "提案中",
+        amount: 200000,
+        dealDate: "2024-01-20",
+      },
+      {
+        id: "deal_003",
+        customerId: "cust_003",
+        customerName: "DEF企業",
+        status: "提案中",
         amount: 100000,
-        product_name: "製品B",
-      },
-      {
-        purchase_id: "PH003",
-        customer_id: "CUST001",
-        purchase_date: new Date("2024-02-20"),
-        amount: 75000,
-        product_name: "製品C",
-      },
-      {
-        purchase_id: "PH004",
-        customer_id: "CUST001",
-        purchase_date: new Date("2024-03-30"),
-        amount: 120000,
-        product_name: "製品D",
-      },
-      {
-        purchase_id: "PH005",
-        customer_id: "CUST001",
-        purchase_date: new Date("2024-04-05"),
-        amount: 60000,
-        product_name: "製品E",
+        dealDate: "2024-01-25",
       },
     ];
 
-    const period_start = new Date("2024-01-01");
-    const period_end = new Date("2024-03-31");
+    const periodStart = new Date("2024-01-01");
+    const periodEnd = new Date("2024-01-31");
 
-    const filtered_result = filterPurchaseHistoryByPeriod(
-      purchase_history,
-      period_start,
-      period_end
-    );
+    const result = classifyDealsByStatus(testDeals, periodStart, periodEnd);
 
-    expect(filtered_result).toHaveLength(3);
-
-    expect(filtered_result[0]).toEqual({
-      purchase_id: "PH002",
-      customer_id: "CUST001",
-      purchase_date: new Date("2024-01-10"),
-      amount: 100000,
-      product_name: "製品B",
+    expect(result).toEqual({
+      classifications: [
+        {
+          status: "提案中",
+          dealCount: 3,
+          totalAmount: 450000,
+          deals: [
+            {
+              id: "deal_001",
+              customerId: "cust_001",
+              customerName: "ABC企業",
+              status: "提案中",
+              amount: 150000,
+              dealDate: "2024-01-15",
+            },
+            {
+              id: "deal_002",
+              customerId: "cust_002",
+              customerName: "XYZ企業",
+              status: "提案中",
+              amount: 200000,
+              dealDate: "2024-01-20",
+            },
+            {
+              id: "deal_003",
+              customerId: "cust_003",
+              customerName: "DEF企業",
+              status: "提案中",
+              amount: 100000,
+              dealDate: "2024-01-25",
+            },
+          ],
+        },
+      ],
+      totalClassifications: 1,
+      periodStart: "2024-01-01",
+      periodEnd: "2024-01-31",
     });
 
-    expect(filtered_result[1]).toEqual({
-      purchase_id: "PH003",
-      customer_id: "CUST001",
-      purchase_date: new Date("2024-02-20"),
-      amount: 75000,
-      product_name: "製品C",
-    });
-
-    expect(filtered_result[2]).toEqual({
-      purchase_id: "PH004",
-      customer_id: "CUST001",
-      purchase_date: new Date("2024-03-30"),
-      amount: 120000,
-      product_name: "製品D",
-    });
-
-    const all_within_period = filtered_result.every(
-      (record) =>
-        record.purchase_date >= period_start &&
-        record.purchase_date <= period_end
+    const proposalCategory = result.classifications.find(
+      (cat) => cat.status === "提案中"
     );
-    expect(all_within_period).toBe(true);
-
-    const period_outside_items = purchase_history.filter(
-      (record) =>
-        record.purchase_date < period_start || record.purchase_date > period_end
-    );
-    const outside_in_filtered = filtered_result.some((item) =>
-      period_outside_items.some(
-        (outside) => outside.purchase_id === item.purchase_id
-      )
-    );
-    expect(outside_in_filtered).toBe(false);
-
-    expect(filtered_result.length).toBe(3);
+    expect(proposalCategory).toBeDefined();
+    expect(proposalCategory?.dealCount).toBe(3);
+    expect(proposalCategory?.totalAmount).toBe(450000);
+    expect(result.totalClassifications).toBe(1);
   });
 });

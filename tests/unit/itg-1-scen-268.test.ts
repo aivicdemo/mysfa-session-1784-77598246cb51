@@ -1,54 +1,42 @@
-import { grantCustomerPortalAccess } from '../../src/logic/it-1784969823049-2-1-1';
+import { validateDocumentContent } from "../../src/logic/it-1-1";
 
-describe('商談レコードの進捗ステータスと提案内容の入力・保存機能', () => {
-  // SCEN-268: [error] 顧客ポータルアクセス権限自動付与機能 - 商談ステータスが『受注』以外のステータスに更新された場合、ポータルアクセス権限は付与されない
-  test('商談ステータスが受注以外の場合、顧客ポータルアクセス権限は付与されない', () => {
-    const dealRecordEstimating = {
-      dealId: 'DEAL-001',
-      customerId: 'CUST-001',
-      dealStatus: '見積作成中',
-      dealAmount: 150000,
-      dealTitle: 'ソフトウェア導入提案',
-      createdAt: '2024-01-15T10:00:00Z',
-    };
+describe("見積・注文・請求書の自動生成と商談ステータス紐付け - 帳票内容検証機能", () => {
+  // SCEN-268
+  test("顧客情報のメールアドレス形式が不正な場合、警告を表示する", () => {
+    const invalidEmailFormats = [
+      "customer@invalid",
+      "customer@.com",
+      "customer@domain",
+      "@example.com",
+      "customer@",
+      "customer",
+    ];
 
-    const resultEstimating = grantCustomerPortalAccess(dealRecordEstimating);
-    expect(resultEstimating.accessPermissionStatus).toBe('未付与');
+    invalidEmailFormats.forEach((invalidEmail) => {
+      const documentData = {
+        customerInfo: {
+          name: "テスト顧客",
+          email: invalidEmail,
+          phone: "09012345678",
+          address: "東京都渋谷区",
+        },
+        dealAmount: 100000,
+        items: [
+          {
+            description: "商品A",
+            quantity: 1,
+            unitPrice: 100000,
+          },
+        ],
+      };
 
-    const dealRecordProposing = {
-      dealId: 'DEAL-001',
-      customerId: 'CUST-001',
-      dealStatus: '提案中',
-      dealAmount: 150000,
-      dealTitle: 'ソフトウェア導入提案',
-      createdAt: '2024-01-15T10:00:00Z',
-    };
+      const result = validateDocumentContent(documentData);
 
-    const resultProposing = grantCustomerPortalAccess(dealRecordProposing);
-    expect(resultProposing.accessPermissionStatus).toBe('未付与');
-
-    const dealRecordOnHold = {
-      dealId: 'DEAL-001',
-      customerId: 'CUST-001',
-      dealStatus: '保留中',
-      dealAmount: 150000,
-      dealTitle: 'ソフトウェア導入提案',
-      createdAt: '2024-01-15T10:00:00Z',
-    };
-
-    const resultOnHold = grantCustomerPortalAccess(dealRecordOnHold);
-    expect(resultOnHold.accessPermissionStatus).toBe('未付与');
-
-    const dealRecordLost = {
-      dealId: 'DEAL-001',
-      customerId: 'CUST-001',
-      dealStatus: '失注',
-      dealAmount: 150000,
-      dealTitle: 'ソフトウェア導入提案',
-      createdAt: '2024-01-15T10:00:00Z',
-    };
-
-    const resultLost = grantCustomerPortalAccess(dealRecordLost);
-    expect(resultLost.accessPermissionStatus).toBe('未付与');
+      expect(result.isValid).toBe(false);
+      expect(result.warnings).toContain(
+        "顧客情報のメールアドレス形式が不正です。正しいメールアドレスを入力してください"
+      );
+      expect(result.canGenerate).toBe(false);
+    });
   });
 });

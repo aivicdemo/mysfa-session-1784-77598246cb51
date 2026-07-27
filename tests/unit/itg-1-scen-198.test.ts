@@ -1,113 +1,70 @@
-import { determineBillingType, extractBillingTargetDeals } from "../../src/logic/it-1-1";
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe("見積・注文・請求書の自動生成機能", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-198
-  test("請求タイプ判定と請求対象商談の自動抽出機能 - 請求タイプが正確に判定され、対応する商談が抽出される", () => {
-    // 複数の商談データを準備
-    const monthlyDeal = {
-      dealId: "DEAL-001",
-      customerId: "CUST-001",
-      dealAmount: 100000,
-      billingType: "monthly",
-      dealStatus: "won",
-      dealDate: new Date("2024-01-15T09:00:00Z"),
-      deliveryDate: new Date("2024-02-15T00:00:00Z"),
-    };
+  test('ステータスフィールドが欠落している商談が含まれるとき、エラーまたは除外される', () => {
+    const deals = [
+      {
+        dealId: 'DEAL001',
+        customerId: 'CUST001',
+        customerName: '株式会社A',
+        status: 'initial_contact',
+        amount: 1000000,
+      },
+      {
+        dealId: 'DEAL002',
+        customerId: 'CUST001',
+        customerName: '株式会社A',
+        status: 'proposal',
+        amount: 500000,
+      },
+      {
+        dealId: 'DEAL003',
+        customerId: 'CUST001',
+        customerName: '株式会社A',
+        status: null,
+        amount: 750000,
+      },
+    ];
 
-    const afterDeliveryDeal = {
-      dealId: "DEAL-002",
-      customerId: "CUST-002",
-      dealAmount: 250000,
-      billingType: "after_delivery",
-      dealStatus: "won",
-      dealDate: new Date("2024-01-20T10:30:00Z"),
-      deliveryDate: new Date("2024-01-31T00:00:00Z"),
-    };
+    const result = aggregateDealProgressByCustomer(deals);
 
-    const customDeal = {
-      dealId: "DEAL-003",
-      customerId: "CUST-003",
-      dealAmount: 180000,
-      billingType: "custom",
-      dealStatus: "won",
-      dealDate: new Date("2024-01-25T14:15:00Z"),
-      deliveryDate: new Date("2024-03-10T00:00:00Z"),
-    };
-
-    // ステップ 1: 月次契約の商談を選択して請求タイプ判定機能を実行
-    const monthlyBillingType = determineBillingType(monthlyDeal);
-    expect(monthlyBillingType).toBe("monthly");
-
-    // ステップ 2: 納期後契約の商談を選択して請求タイプ判定機能を実行
-    const afterDeliveryBillingType = determineBillingType(afterDeliveryDeal);
-    expect(afterDeliveryBillingType).toBe("after_delivery");
-
-    // ステップ 3: カスタム契約の商談を選択して請求タイプ判定機能を実行
-    const customBillingType = determineBillingType(customDeal);
-    expect(customBillingType).toBe("custom");
-
-    // 各請求タイプに対応する請求対象商談が自動抽出される
-    const allDeals = [monthlyDeal, afterDeliveryDeal, customDeal];
-
-    // ステップ 4-5: 月次タイプの請求対象商談を抽出
-    const monthlyExtracted = extractBillingTargetDeals(allDeals, "monthly");
-    expect(monthlyExtracted).toHaveLength(1);
-    expect(monthlyExtracted[0].dealId).toBe("DEAL-001");
-    expect(monthlyExtracted[0].dealAmount).toBe(100000);
-    expect(monthlyExtracted[0].billingType).toBe("monthly");
-    expect(monthlyExtracted[0].dealStatus).toBe("won");
-
-    // ステップ 6-7: 納期後タイプの請求対象商談を抽出
-    const afterDeliveryExtracted = extractBillingTargetDeals(
-      allDeals,
-      "after_delivery"
-    );
-    expect(afterDeliveryExtracted).toHaveLength(1);
-    expect(afterDeliveryExtracted[0].dealId).toBe("DEAL-002");
-    expect(afterDeliveryExtracted[0].dealAmount).toBe(250000);
-    expect(afterDeliveryExtracted[0].billingType).toBe("after_delivery");
-    expect(afterDeliveryExtracted[0].dealStatus).toBe("won");
-
-    // ステップ 8-9: カスタムタイプの請求対象商談を抽出
-    const customExtracted = extractBillingTargetDeals(allDeals, "custom");
-    expect(customExtracted).toHaveLength(1);
-    expect(customExtracted[0].dealId).toBe("DEAL-003");
-    expect(customExtracted[0].dealAmount).toBe(180000);
-    expect(customExtracted[0].billingType).toBe("custom");
-    expect(customExtracted[0].dealStatus).toBe("won");
-
-    // ステップ 10: 抽出された商談データが正確であることを検証
-    // 月次抽出の詳細検証
-    expect(monthlyExtracted[0].customerId).toBe("CUST-001");
-    expect(monthlyExtracted[0].deliveryDate).toEqual(
-      new Date("2024-02-15T00:00:00Z")
-    );
-
-    // 納期後抽出の詳細検証
-    expect(afterDeliveryExtracted[0].customerId).toBe("CUST-002");
-    expect(afterDeliveryExtracted[0].deliveryDate).toEqual(
-      new Date("2024-01-31T00:00:00Z")
-    );
-
-    // カスタム抽出の詳細検証
-    expect(customExtracted[0].customerId).toBe("CUST-003");
-    expect(customExtracted[0].deliveryDate).toEqual(
-      new Date("2024-03-10T00:00:00Z")
-    );
-
-    // 複数タイプ混在時の正確性確認
-    const monthlyCount = allDeals.filter(
-      (d) => determineBillingType(d) === "monthly"
-    ).length;
-    const afterDeliveryCount = allDeals.filter(
-      (d) => determineBillingType(d) === "after_delivery"
-    ).length;
-    const customCount = allDeals.filter(
-      (d) => determineBillingType(d) === "custom"
-    ).length;
-
-    expect(monthlyCount).toBe(1);
-    expect(afterDeliveryCount).toBe(1);
-    expect(customCount).toBe(1);
+    // エラーが発生するか、該当商談が除外されるかのいずれかを検証
+    if (result instanceof Error || (typeof result === 'object' && result !== null && 'error' in result)) {
+      // ケース1: エラーが発生する場合
+      expect(result.toString()).toMatch(/ステータス|必須フィールド/);
+    } else {
+      // ケース2: 該当商談が除外される場合
+      expect(result).toBeDefined();
+      expect(result.summary).toBeDefined();
+      expect(result.summary.totalDealsProcessed).toBe(2);
+      expect(result.summary.dealsExcluded).toBe(1);
+      
+      // 集計結果の顧客別データを検証
+      const customerData = result.customerAggregations.find(
+        (agg: { customerId: string }) => agg.customerId === 'CUST001'
+      );
+      expect(customerData).toBeDefined();
+      
+      // ステータス別集計を検証（status: nullの商談は含まれない）
+      expect(customerData.progressByStatus).toBeDefined();
+      expect(customerData.progressByStatus.initial_contact).toBeDefined();
+      expect(customerData.progressByStatus.initial_contact.count).toBe(1);
+      expect(customerData.progressByStatus.initial_contact.totalAmount).toBe(1000000);
+      
+      expect(customerData.progressByStatus.proposal).toBeDefined();
+      expect(customerData.progressByStatus.proposal.count).toBe(1);
+      expect(customerData.progressByStatus.proposal.totalAmount).toBe(500000);
+      
+      // status: nullの商談は統計に含まれていない
+      expect(customerData.totalDealsCount).toBe(2);
+      expect(customerData.totalAmount).toBe(1500000);
+      
+      // 除外ログまたはメタデータが利用可能
+      expect(result.excludedDeals).toBeDefined();
+      expect(result.excludedDeals.length).toBe(1);
+      expect(result.excludedDeals[0].dealId).toBe('DEAL003');
+      expect(result.excludedDeals[0].reason).toMatch(/ステータス|必須/);
+    }
   });
 });

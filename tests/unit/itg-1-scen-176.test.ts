@@ -1,28 +1,37 @@
-import { generateInvoiceFromDeal } from "../../src/logic/it-1-1";
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe("見積・注文・請求書の自動生成機能", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-176
-  test("商談レコードに金額情報が存在しない場合、請求書生成処理がエラーハンドリングされる", () => {
-    const dealRecordWithoutAmount = {
-      dealId: "DEAL-001",
-      customerId: "CUST-001",
-      customerName: "テスト顧客",
-      customerAddress: "東京都渋谷区",
-      dealStatus: "受注",
-      dealAmount: null,
-      dealDetails: [
-        {
-          productId: "PROD-001",
-          productName: "商品A",
-          quantity: 1,
-          unitPrice: 100000,
-        },
-      ],
-      dealCreatedDate: "2024-01-15T10:00:00Z",
-    };
+  test('顧客別商談進捗集計機能 - 受注ステータスの商談件数が複数件のとき、その件数が正確に集計される', () => {
+    // Arrange: テストデータの準備
+    const customerId = 'CUST-A';
+    const deals = [
+      {
+        dealId: 'DEAL-001',
+        customerId: 'CUST-A',
+        status: '受注',
+        amount: 100000,
+      },
+      {
+        dealId: 'DEAL-002',
+        customerId: 'CUST-A',
+        status: '受注',
+        amount: 150000,
+      },
+      {
+        dealId: 'DEAL-003',
+        customerId: 'CUST-A',
+        status: '受注',
+        amount: 200000,
+      },
+    ];
 
-    expect(() => generateInvoiceFromDeal(dealRecordWithoutAmount)).toThrow(
-      /金額/
-    );
+    // Act: 集計ロジックの実行
+    const result = aggregateDealProgressByCustomer(customerId, deals);
+
+    // Assert: 期待結果の検証
+    expect(result.customerId).toBe('CUST-A');
+    expect(result.dealProgressByStatus['受注'].count).toBe(3);
+    expect(result.dealProgressByStatus['受注'].totalAmount).toBe(450000);
   });
 });

@@ -1,41 +1,57 @@
-import { filterActivityRecordsByType } from "../../src/logic/it-1";
+import { aggregateMonthlySalesMetrics } from '../../src/logic/it-1-3';
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
-  // SCEN-156
-  test("活動記録タイプフィルタリング機能 - 選択されたタイプの活動記録が存在しない場合に空の結果セットが返される", () => {
-    // Arrange: 存在しないタイプを選択したシナリオを設定
-    const activity_records = [
-      {
-        id: "act_001",
-        customer_id: "cust_001",
-        activity_type: "email",
-        activity_date: "2024-01-15T09:00:00Z",
-        description: "顧客メール送付",
-      },
-      {
-        id: "act_002",
-        customer_id: "cust_001",
-        activity_type: "phone",
-        activity_date: "2024-01-14T14:30:00Z",
-        description: "顧客電話対応",
-      },
-      {
-        id: "act_003",
-        customer_id: "cust_001",
-        activity_type: "visit",
-        activity_date: "2024-01-13T11:00:00Z",
-        description: "顧客訪問",
-      },
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-156: [edge] 当月集計結果の月判定 - 月末日に登録された商談が当月集計に含まれる
+  test('当月末日23時59分59秒に登録された商談が当月集計に含まれること', () => {
+    const referenceDate = new Date('2024-04-01T00:00:00Z');
+    const currentYear = referenceDate.getFullYear();
+    const currentMonth = referenceDate.getMonth();
+
+    // 当月末日23時59分59秒のタイムスタンプ
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+    const dealOnLastDayOfMonth = {
+      dealId: 'deal-001',
+      customerId: 'cust-001',
+      amount: 1000000,
+      status: '成約',
+      registeredAt: lastDayOfMonth.toISOString(),
+    };
+
+    // 当月1日のタイムスタンプ
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    const dealOnFirstDayOfMonth = {
+      dealId: 'deal-002',
+      customerId: 'cust-002',
+      amount: 500000,
+      status: '成約',
+      registeredAt: firstDayOfMonth.toISOString(),
+    };
+
+    // 翌月1日のタイムスタンプ
+    const firstDayOfNextMonth = new Date(currentYear, currentMonth + 1, 1, 0, 0, 0, 0);
+    const dealOnFirstDayOfNextMonth = {
+      dealId: 'deal-003',
+      customerId: 'cust-003',
+      amount: 2000000,
+      status: '成約',
+      registeredAt: firstDayOfNextMonth.toISOString(),
+    };
+
+    const allDeals = [
+      dealOnFirstDayOfMonth,
+      dealOnLastDayOfMonth,
+      dealOnFirstDayOfNextMonth,
     ];
 
-    const selected_type = "future_type_not_implemented";
+    const result = aggregateMonthlySalesMetrics(
+      allDeals,
+      referenceDate
+    );
 
-    // Act: 存在しないタイプでフィルタリングを実行
-    const result = filterActivityRecordsByType(activity_records, selected_type);
-
-    // Assert: 空の結果セットが返されることを検証
-    expect(result.records).toEqual([]);
-    expect(result.total_count).toBe(0);
-    expect(result.message).toBe("該当する活動記録がありません");
+    expect(result.totalSalesAmount).toBe(1500000);
+    expect(result.closedDealCount).toBe(2);
+    expect(result.includedDealIds).toContain('deal-001');
+    expect(result.includedDealIds).toContain('deal-002');
+    expect(result.includedDealIds).not.toContain('deal-003');
   });
 });

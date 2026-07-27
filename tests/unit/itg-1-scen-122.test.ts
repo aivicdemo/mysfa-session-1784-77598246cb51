@@ -1,172 +1,107 @@
-import { generateMonthlyReportDocument } from '../../src/logic/it-1-3';
+import { extractActivitiesWithDuplicateRemoval } from "../../src/logic/it-1";
 
-describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
   // SCEN-122
-  test('月次営業成績報告書が統一フォーマットで生成され、売上・件数・進捗率・顧客別詳細の必須項目がすべて記載される', () => {
-    const input_reporting_month = '2024-04';
-    const input_department_id = 'DEPT001';
-    const input_target_sales = 5000000;
+  test("月次報告期限・データ抽出処理 - 抽出対象期間内に同一の活動レコードが重複している場合、重複を排除して返される", () => {
+    // Arrange: テスト用データセットアップ
+    const extraction_start_date = new Date("2024-01-01T00:00:00Z");
+    const extraction_end_date = new Date("2024-01-31T23:59:59Z");
 
-    const input_deals = [
-      {
-        deal_id: 'DEAL001',
-        customer_id: 'CUST001',
-        customer_name: 'Example Corp A',
-        amount: 1500000,
-        status: '受注',
-        deal_date: '2024-04-05'
-      },
-      {
-        deal_id: 'DEAL002',
-        customer_id: 'CUST002',
-        customer_name: 'Example Corp B',
-        amount: 2000000,
-        status: '受注',
-        deal_date: '2024-04-10'
-      },
-      {
-        deal_id: 'DEAL003',
-        customer_id: 'CUST003',
-        customer_name: 'Example Corp C',
-        amount: 1200000,
-        status: '受注',
-        deal_date: '2024-04-15'
-      },
-      {
-        deal_id: 'DEAL004',
-        customer_id: 'CUST001',
-        customer_name: 'Example Corp A',
-        amount: 800000,
-        status: '提案中',
-        deal_date: '2024-04-20'
-      },
-      {
-        deal_id: 'DEAL005',
-        customer_id: 'CUST004',
-        customer_name: 'Example Corp D',
-        amount: 0,
-        status: '失注',
-        deal_date: '2024-04-25'
-      }
+    const salesforce_user_id = "USR_001";
+    const customer_id = "CUST_001";
+    const activity_type = "EMAIL";
+    const activity_datetime = new Date("2024-01-15T10:30:00Z");
+    const activity_subject = "Follow-up on proposal";
+    const activity_description = "Customer confirmed interest in product A";
+
+    // 同一の活動内容を示す重複レコードを3件作成
+    const duplicate_activity_record_1 = {
+      activity_id: "ACT_001",
+      salesforce_user_id: salesforce_user_id,
+      customer_id: customer_id,
+      activity_type: activity_type,
+      activity_datetime: activity_datetime,
+      activity_subject: activity_subject,
+      activity_description: activity_description,
+      created_at: new Date("2024-01-15T10:30:00Z"),
+    };
+
+    const duplicate_activity_record_2 = {
+      activity_id: "ACT_002",
+      salesforce_user_id: salesforce_user_id,
+      customer_id: customer_id,
+      activity_type: activity_type,
+      activity_datetime: activity_datetime,
+      activity_subject: activity_subject,
+      activity_description: activity_description,
+      created_at: new Date("2024-01-15T10:30:01Z"),
+    };
+
+    const duplicate_activity_record_3 = {
+      activity_id: "ACT_003",
+      salesforce_user_id: salesforce_user_id,
+      customer_id: customer_id,
+      activity_type: activity_type,
+      activity_datetime: activity_datetime,
+      activity_subject: activity_subject,
+      activity_description: activity_description,
+      created_at: new Date("2024-01-15T10:30:02Z"),
+    };
+
+    // 期間内のその他の異なる活動レコード
+    const unique_activity_record = {
+      activity_id: "ACT_004",
+      salesforce_user_id: salesforce_user_id,
+      customer_id: customer_id,
+      activity_type: "PHONE",
+      activity_datetime: new Date("2024-01-20T14:15:00Z"),
+      activity_subject: "Product demo call",
+      activity_description: "Demonstrated key features to stakeholder",
+      created_at: new Date("2024-01-20T14:15:00Z"),
+    };
+
+    const input_activities = [
+      duplicate_activity_record_1,
+      duplicate_activity_record_2,
+      duplicate_activity_record_3,
+      unique_activity_record,
     ];
 
-    const input_customer_details = [
-      {
-        customer_id: 'CUST001',
-        customer_name: 'Example Corp A',
-        total_sales: 2300000,
-        deals_by_status: {
-          '受注': { count: 1, amount: 1500000 },
-          '提案中': { count: 1, amount: 800000 },
-          '失注': { count: 0, amount: 0 }
-        }
-      },
-      {
-        customer_id: 'CUST002',
-        customer_name: 'Example Corp B',
-        total_sales: 2000000,
-        deals_by_status: {
-          '受注': { count: 1, amount: 2000000 },
-          '提案中': { count: 0, amount: 0 },
-          '失注': { count: 0, amount: 0 }
-        }
-      },
-      {
-        customer_id: 'CUST003',
-        customer_name: 'Example Corp C',
-        total_sales: 1200000,
-        deals_by_status: {
-          '受注': { count: 1, amount: 1200000 },
-          '提案中': { count: 0, amount: 0 },
-          '失注': { count: 0, amount: 0 }
-        }
-      },
-      {
-        customer_id: 'CUST004',
-        customer_name: 'Example Corp D',
-        total_sales: 0,
-        deals_by_status: {
-          '受注': { count: 0, amount: 0 },
-          '提案中': { count: 0, amount: 0 },
-          '失注': { count: 1, amount: 0 }
-        }
-      }
-    ];
+    // Act: データ抽出処理を実行
+    const result = extractActivitiesWithDuplicateRemoval(
+      input_activities,
+      extraction_start_date,
+      extraction_end_date
+    );
 
-    const result = generateMonthlyReportDocument({
-      reporting_month: input_reporting_month,
-      department_id: input_department_id,
-      target_sales: input_target_sales,
-      deals: input_deals,
-      customer_details: input_customer_details
-    });
+    // Assert: 抽出結果を検証
+    // 重複していた3件が1件にまとめられ、異なる活動レコードは保持される
+    // 期待結果: 活動レコード総数は2件（重複排除後）
+    expect(result.length).toBe(2);
 
-    expect(result).toBeDefined();
-    expect(result.format).toBe('統一フォーマット');
-    expect(result.reporting_month).toBe('2024-04');
-    expect(result.department_id).toBe('DEPT001');
+    // 排除されたレコードの重要情報が保持されていることを確認
+    const deduped_email_activity = result.find(
+      (record) => record.activity_type === "EMAIL"
+    );
+    expect(deduped_email_activity).toBeDefined();
+    expect(deduped_email_activity?.salesforce_user_id).toBe(salesforce_user_id);
+    expect(deduped_email_activity?.customer_id).toBe(customer_id);
+    expect(deduped_email_activity?.activity_type).toBe(activity_type);
+    expect(deduped_email_activity?.activity_datetime).toEqual(
+      activity_datetime
+    );
+    expect(deduped_email_activity?.activity_subject).toBe(activity_subject);
+    expect(deduped_email_activity?.activity_description).toBe(
+      activity_description
+    );
 
-    // 売上情報の検証: 合計売上 = 1500000 + 2000000 + 1200000 = 4700000
-    const expected_total_sales = 4700000;
-    expect(result.summary.total_sales).toBe(expected_total_sales);
-    expect(result.summary.currency).toBe('JPY');
-
-    // 件数情報の検証
-    const expected_deal_count = 5;
-    const expected_closed_count = 3;
-    const expected_lost_count = 1;
-    const expected_in_progress_count = 1;
-    expect(result.summary.total_deal_count).toBe(expected_deal_count);
-    expect(result.summary.closed_deal_count).toBe(expected_closed_count);
-    expect(result.summary.lost_deal_count).toBe(expected_lost_count);
-    expect(result.summary.in_progress_deal_count).toBe(expected_in_progress_count);
-
-    // 進捗率の検証: 受注率 = 受注件数(3) / 提案件数(4) = 0.75 = 75%
-    const expected_close_rate = 0.75;
-    expect(result.summary.close_rate).toBe(expected_close_rate);
-
-    // 達成率の検証: 達成率 = 売上(4700000) / 目標(5000000) = 0.94 = 94%
-    const expected_achievement_rate = 0.94;
-    expect(result.summary.achievement_rate).toBe(expected_achievement_rate);
-
-    // 顧客別詳細が存在し、4件の顧客が記載されていることを確認
-    expect(result.customer_details).toBeDefined();
-    expect(result.customer_details.length).toBe(4);
-
-    // 顧客別詳細の第1顧客検証
-    const first_customer = result.customer_details[0];
-    expect(first_customer.customer_id).toBe('CUST001');
-    expect(first_customer.customer_name).toBe('Example Corp A');
-    expect(first_customer.total_sales).toBe(2300000);
-    expect(first_customer.deals_by_status['受注'].count).toBe(1);
-    expect(first_customer.deals_by_status['受注'].amount).toBe(1500000);
-    expect(first_customer.deals_by_status['提案中'].count).toBe(1);
-    expect(first_customer.deals_by_status['提案中'].amount).toBe(800000);
-
-    // 顧客別詳細の第2顧客検証
-    const second_customer = result.customer_details[1];
-    expect(second_customer.customer_id).toBe('CUST002');
-    expect(second_customer.customer_name).toBe('Example Corp B');
-    expect(second_customer.total_sales).toBe(2000000);
-    expect(second_customer.deals_by_status['受注'].count).toBe(1);
-    expect(second_customer.deals_by_status['受注'].amount).toBe(2000000);
-
-    // ファイル情報の検証
-    expect(result.file_info).toBeDefined();
-    expect(result.file_info.filename).toMatch(/monthly_report_2024-04_DEPT001_\d{4}-\d{2}-\d{2}\.pdf/);
-    expect(result.file_info.content_type).toBe('application/pdf');
-    expect(result.file_info.is_downloadable).toBe(true);
-
-    // 生成日時が設定されていることを確認（ISO形式の日付文字列）
-    expect(result.generated_at).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/);
-
-    // 必須項目の完全性チェック
-    expect(result.required_fields_present).toBe(true);
-    expect(result.required_fields_present_detail).toEqual({
-      has_sales: true,
-      has_deal_count: true,
-      has_close_rate: true,
-      has_customer_details: true
-    });
+    // 異なる活動レコードが保持されていることを確認
+    const unique_activity = result.find((record) => record.activity_type === "PHONE");
+    expect(unique_activity).toBeDefined();
+    expect(unique_activity?.activity_id).toBe("ACT_004");
+    expect(unique_activity?.activity_subject).toBe("Product demo call");
+    expect(unique_activity?.activity_datetime).toEqual(
+      new Date("2024-01-20T14:15:00Z")
+    );
   });
 });

@@ -1,45 +1,65 @@
-import { searchCustomersByAuthorization } from "../../src/logic/it-1";
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-164
-  test("営業権限による顧客検索フィルタリング機能 - 検索条件に該当する担当顧客が存在しない場合に空の結果セットが返される", async () => {
-    const fetchMock = require("jest-fetch-mock");
-    fetchMock.enableMocks();
-    fetchMock.resetMocks();
-
-    const userId = "user_001";
-    const searchCondition = {
-      region: "北海道",
-      industry: "IT",
-      salesRange: {
-        min: 10000000,
-        max: 50000000,
+  test('顧客別商談進捗集計機能 - 顧客に紐付く商談が複数件のとき、全件がステータス別に正しく分類される', () => {
+    const customer_id = 'CUST_001';
+    const deals = [
+      {
+        deal_id: 'DEAL_001',
+        customer_id,
+        status: '提案中',
+        amount: 100000,
       },
-    };
+      {
+        deal_id: 'DEAL_002',
+        customer_id,
+        status: '提案中',
+        amount: 150000,
+      },
+      {
+        deal_id: 'DEAL_003',
+        customer_id,
+        status: '交渉中',
+        amount: 200000,
+      },
+      {
+        deal_id: 'DEAL_004',
+        customer_id,
+        status: '成約',
+        amount: 250000,
+      },
+      {
+        deal_id: 'DEAL_005',
+        customer_id,
+        status: '失注',
+        amount: 50000,
+      },
+    ];
 
-    fetchMock.mockResponseOnce(
-      JSON.stringify({
-        status: 200,
-        data: [],
-        message: "該当する顧客がありません",
-      }),
-      { status: 200 }
-    );
+    const result = aggregateDealProgressByCustomer(customer_id, deals);
 
-    const result = await searchCustomersByAuthorization(userId, searchCondition);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/customers/search"),
-      expect.objectContaining({
-        method: "POST",
-      })
-    );
-
-    expect(result).toBeDefined();
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBe(0);
-
-    fetchMock.disableMocks();
+    expect(result).toEqual({
+      customer_id,
+      status_breakdown: {
+        提案中: {
+          count: 2,
+          total_amount: 250000,
+        },
+        交渉中: {
+          count: 1,
+          total_amount: 200000,
+        },
+        成約: {
+          count: 1,
+          total_amount: 250000,
+        },
+        失注: {
+          count: 1,
+          total_amount: 50000,
+        },
+      },
+      total_deal_count: 5,
+    });
   });
 });

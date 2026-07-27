@@ -1,33 +1,109 @@
-import { reconcileSalesAndInvoiceData } from "../../src/logic/it-1784969823049-1-1-1";
+import { describe, test, expect, beforeEach, jest } from '@jest/globals';
+import { updateDealStatusToContractAndGenerateSalesRecord } from '../../src/logic/it-1-3';
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
+// Mock adapters
+const mockNotificationServiceAdapter = {
+  sendQuoteNotification: jest.fn(),
+  sendOrderNotification: jest.fn(),
+  sendInvoiceNotification: jest.fn(),
+  getDeliveryStatus: jest.fn(),
+};
+
+const mockDocumentStorageAdapter = {
+  uploadDocument: jest.fn(),
+  generateShareLink: jest.fn(),
+  deleteDocument: jest.fn(),
+};
+
+const mockPaymentGatewayAdapter = {
+  generatePaymentLink: jest.fn(),
+  verifyPayment: jest.fn(),
+  getTransactionStatus: jest.fn(),
+};
+
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockNotificationServiceAdapter.sendInvoiceNotification.mockResolvedValue({ success: true });
+    mockDocumentStorageAdapter.uploadDocument.mockResolvedValue({ documentId: 'doc-123', url: 'https://storage.example.com/doc-123' });
+    mockPaymentGatewayAdapter.generatePaymentLink.mockResolvedValue({ paymentLink: 'https://payment.example.com/link-123' });
+  });
+
   // SCEN-223
-  test("売上実績と請求データ照合 - 売上計上予定日と請求日の差異が1日以内の場合に許容ズレとして判定される", () => {
-    const salesRecordPlannedDate = new Date("2024-01-15T00:00:00Z");
-    const invoiceIssuedDate = new Date("2024-01-16T00:00:00Z");
-    const salesTotalAmount = 100000;
-    const invoiceAmount = 100000;
-    const invoiceId = "INV-001";
-    const salesId = "SAL-001";
+  test('商談ステータスを成約に変更した場合、売上実績レコードが自動で生成される', async () => {
+    const dealId = 'deal-001';
+    const customerId = 'customer-A';
+    const dealName = 'テスト商談';
+    const customerName = 'テスト顧客A';
+    const dealAmount = 1000000;
+    const dealDate = new Date('2024-01-15T00:00:00Z');
+    const currentSystemTime = new Date('2024-01-15T10:30:00Z');
 
-    const reconciliationResult = reconcileSalesAndInvoiceData({
-      salesId: salesId,
-      salesTotalAmount: salesTotalAmount,
-      salesPlannedDate: salesRecordPlannedDate,
-      invoiceId: invoiceId,
-      invoiceAmount: invoiceAmount,
-      invoiceIssuedDate: invoiceIssuedDate,
-    });
+    const testDeal = {
+      id: dealId,
+      name: dealName,
+      customerId: customerId,
+      customerName: customerName,
+      amount: dealAmount,
+      status: '提案中',
+      dealDate: dealDate,
+      createdAt: new Date('2024-01-10T00:00:00Z'),
+      updatedAt: new Date('2024-01-10T00:00:00Z'),
+    };
 
-    const dateDifferenceInDays = Math.abs(
-      (invoiceIssuedDate.getTime() - salesRecordPlannedDate.getTime()) /
-        (1000 * 60 * 60 * 24)
+    const salesRecordStore: Array<{
+      id: string;
+      dealId: string;
+      customerId: string;
+      salesAmount: number;
+      salesDate: Date;
+      status: string;
+      createdAt: Date;
+    }> = [];
+
+    const result = await updateDealStatusToContractAndGenerateSalesRecord(
+      testDeal,
+      '成約',
+      {
+        notificationService: mockNotificationServiceAdapter,
+        documentStorage: mockDocumentStorageAdapter,
+        paymentGateway: mockPaymentGatewayAdapter,
+      },
+      {
+        getCurrentTime: () => currentSystemTime,
+        saveSalesRecord: (record) => {
+          const newRecord = {
+            id: `sales-${Date.now()}`,
+            dealId: record.dealId,
+            customerId: record.customerId,
+            salesAmount: record.salesAmount,
+            salesDate: record.salesDate,
+            status: record.status,
+            createdAt: record.createdAt,
+          };
+          salesRecordStore.push(newRecord);
+          return newRecord;
+        },
+      }
     );
 
-    expect(dateDifferenceInDays).toBeLessThanOrEqual(1);
-    expect(reconciliationResult.dateDifferenceInDays).toBe(1);
-    expect(reconciliationResult.isWithinTolerance).toBe(true);
-    expect(reconciliationResult.reconciliationStatus).toBe("許容範囲内");
-    expect(reconciliationResult.amountMatch).toBe(true);
+    expect(result.dealStatus).toBe('成約');
+    expect(result.salesRecordGenerated).toBe(true);
+
+    expect(salesRecordStore).toHaveLength(1);
+    const generatedSalesRecord = salesRecordStore[0];
+
+    expect(generatedSalesRecord.dealId).toBe(dealId);
+    expect(generatedSalesRecord.customerId).toBe(customerId);
+    expect(generatedSalesRecord.salesAmount).toBe(1000000);
+    expect(generatedSalesRecord.salesDate).toEqual(currentSystemTime);
+    expect(generatedSalesRecord.status).toBe('確定');
+
+    const timeDifferenceMs = generatedSalesRecord.createdAt.getTime() - currentSystemTime.getTime();
+    expect(Math.abs(timeDifferenceMs)).toBeLessThanOrEqual(5000);
+
+    expect(mockNotificationServiceAdapter.sendInvoiceNotification).toHaveBeenCalled();
+    expect(mockDocumentStorageAdapter.uploadDocument).toHaveBeenCalled();
+    expect(mockPaymentGatewayAdapter.generatePaymentLink).toHaveBeenCalled();
   });
 });

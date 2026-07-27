@@ -1,27 +1,47 @@
-import { extractBillingTargetDeals } from '../../src/logic/it-1-1';
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe('見積・注文・請求書の自動生成機能', () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-201
-  test('請求タイプ判定と請求対象商談の自動抽出機能 - 定義されていない請求タイプが指定された場合、エラーが返される', () => {
-    const invalid_billing_type_1 = 'INVALID_TYPE';
-    const invalid_billing_type_2 = '999';
+  test('顧客別商談進捗集計機能 - 同一顧客に同じステータスの商談が複数件あるとき、件数と合計金額が正確に集計される', () => {
+    const customer_name = 'A株式会社';
+    const deals = [
+      {
+        customer_name: customer_name,
+        status: '商談中',
+        amount: 1000000,
+      },
+      {
+        customer_name: customer_name,
+        status: '商談中',
+        amount: 1500000,
+      },
+      {
+        customer_name: customer_name,
+        status: '商談中',
+        amount: 2000000,
+      },
+      {
+        customer_name: customer_name,
+        status: '提案済み',
+        amount: 800000,
+      },
+      {
+        customer_name: customer_name,
+        status: '提案済み',
+        amount: 1200000,
+      },
+    ];
 
-    expect(() =>
-      extractBillingTargetDeals({
-        billing_type: invalid_billing_type_1,
-        target_period_start: '2024-04-01',
-        target_period_end: '2024-04-30',
-        user_id: 'user_001'
-      })
-    ).toThrow(/請求タイプ/);
+    const result = aggregateDealProgressByCustomer(deals, customer_name);
 
-    expect(() =>
-      extractBillingTargetDeals({
-        billing_type: invalid_billing_type_2,
-        target_period_start: '2024-04-01',
-        target_period_end: '2024-04-30',
-        user_id: 'user_001'
-      })
-    ).toThrow(/請求タイプ/);
+    const in_negotiation = result.find((item) => item.status === '商談中');
+    expect(in_negotiation).toBeDefined();
+    expect(in_negotiation!.count).toBe(3);
+    expect(in_negotiation!.total_amount).toBe(4500000);
+
+    const proposal_submitted = result.find((item) => item.status === '提案済み');
+    expect(proposal_submitted).toBeDefined();
+    expect(proposal_submitted!.count).toBe(2);
+    expect(proposal_submitted!.total_amount).toBe(2000000);
   });
 });

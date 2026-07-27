@@ -1,92 +1,75 @@
-import { filterPurchaseHistoryByDateRange } from "../../src/logic/it-1";
+import { aggregateMonthlySalesAmount } from '../../src/logic/it-1-3';
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
-  // SCEN-147
-  test("過去購買履歴フィルタリング機能 - 対象期間外の古い購買履歴が除外されて表示されない", () => {
-    const referenceDate = new Date("2024-05-26T00:00:00Z");
-    const lookbackMonths = 12;
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-147: [edge] 当月商談金額集計機能 - 商談の明細行が0件のとき商談金額0円として扱われる
+  test('should treat deals with zero detail lines as 0 yen in monthly aggregation', () => {
+    const current_month_start = new Date('2024-04-01T00:00:00Z');
+    const current_month_end = new Date('2024-04-30T23:59:59Z');
 
-    const purchaseHistory = [
+    const deal_with_zero_details = {
+      deal_id: 'DEAL-001',
+      customer_id: 'CUST-001',
+      customer_name: 'Test Customer',
+      deal_amount: 0,
+      deal_date: new Date('2024-04-15T10:00:00Z'),
+      detail_lines: [],
+      status: 'proposed'
+    };
+
+    const deal_with_details = {
+      deal_id: 'DEAL-002',
+      customer_id: 'CUST-002',
+      customer_name: 'Another Customer',
+      deal_amount: 150000,
+      deal_date: new Date('2024-04-20T14:30:00Z'),
+      detail_lines: [
+        {
+          line_id: 'LINE-001',
+          product_name: 'Product A',
+          quantity: 2,
+          unit_price: 75000,
+          line_amount: 150000
+        }
+      ],
+      status: 'proposed'
+    };
+
+    const deals = [deal_with_zero_details, deal_with_details];
+
+    const result = aggregateMonthlySalesAmount(
+      deals,
+      current_month_start,
+      current_month_end
+    );
+
+    const expected_total_amount = 0 + 150000;
+    const expected_deal_count = 2;
+    const expected_deals_with_status = [
       {
-        purchaseId: "p001",
-        customerId: "cust001",
-        amount: 100000,
-        purchaseDate: new Date("2024-05-15T10:00:00Z"),
+        deal_id: 'DEAL-001',
+        customer_name: 'Test Customer',
+        deal_amount: 0,
+        status: 'proposed'
       },
       {
-        purchaseId: "p002",
-        customerId: "cust001",
-        amount: 150000,
-        purchaseDate: new Date("2024-01-10T14:30:00Z"),
-      },
-      {
-        purchaseId: "p003",
-        customerId: "cust001",
-        amount: 75000,
-        purchaseDate: new Date("2023-06-20T09:15:00Z"),
-      },
-      {
-        purchaseId: "p004",
-        customerId: "cust001",
-        amount: 200000,
-        purchaseDate: new Date("2021-04-05T11:00:00Z"),
-      },
-      {
-        purchaseId: "p005",
-        customerId: "cust001",
-        amount: 50000,
-        purchaseDate: new Date("2024-03-01T15:45:00Z"),
-      },
+        deal_id: 'DEAL-002',
+        customer_name: 'Another Customer',
+        deal_amount: 150000,
+        status: 'proposed'
+      }
     ];
 
-    const result = filterPurchaseHistoryByDateRange(
-      purchaseHistory,
-      referenceDate,
-      lookbackMonths
-    );
-
-    expect(result.length).toBe(4);
-    expect(result).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          purchaseId: "p001",
-          amount: 100000,
-          purchaseDate: new Date("2024-05-15T10:00:00Z"),
-        }),
-        expect.objectContaining({
-          purchaseId: "p002",
-          amount: 150000,
-          purchaseDate: new Date("2024-01-10T14:30:00Z"),
-        }),
-        expect.objectContaining({
-          purchaseId: "p003",
-          amount: 75000,
-          purchaseDate: new Date("2023-06-20T09:15:00Z"),
-        }),
-        expect.objectContaining({
-          purchaseId: "p005",
-          amount: 50000,
-          purchaseDate: new Date("2024-03-01T15:45:00Z"),
-        }),
-      ])
-    );
-
-    const excludedRecord = result.find(
-      (record) => record.purchaseId === "p004"
-    );
-    expect(excludedRecord).toBeUndefined();
-
-    const oldestIncludedDate = new Date("2023-05-26T00:00:00Z");
-    result.forEach((record) => {
-      expect(record.purchaseDate.getTime()).toBeGreaterThanOrEqual(
-        oldestIncludedDate.getTime()
-      );
+    expect(result).toEqual({
+      period_start: current_month_start,
+      period_end: current_month_end,
+      total_amount: expected_total_amount,
+      deal_count: expected_deal_count,
+      deals: expected_deals_with_status,
+      calculation_completed: true
     });
 
-    result.forEach((record) => {
-      expect(record.purchaseDate.getTime()).toBeLessThanOrEqual(
-        referenceDate.getTime()
-      );
-    });
+    expect(result.total_amount).toBe(150000);
+    expect(result.deal_count).toBe(2);
+    expect(result.deals[0].deal_amount).toBe(0);
   });
 });

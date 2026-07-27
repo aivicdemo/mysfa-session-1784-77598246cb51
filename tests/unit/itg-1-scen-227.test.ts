@@ -1,69 +1,158 @@
-import { createMigrationPlan } from '../../src/logic/it-1-3';
+import {
+  updateDealStatusAndGenerateBilling,
+} from "../../src/logic/it-1-2";
 
-describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+describe("商談ステータスと請求データの紐付け・可視化", () => {
   // SCEN-227
-  test('移行マイルストーンが1つのみの最小構成の移行計画が成立する', () => {
-    const migration_plan_input = {
-      plan_name: 'Salesforce to Custom System Migration',
-      description: 'Phase-based migration from Salesforce to self-developed CRM',
-      migration_start_date: '2024-06-01',
-      migration_end_date: '2024-12-31',
-      milestones: [
-        {
-          milestone_id: 'M001',
-          milestone_name: '初期データ移行完了',
-          planned_date: '2024-07-15',
-          assigned_person: 'admin_user_001',
-          completion_criteria: 'All historical transaction data transferred and validated'
-        }
-      ],
-      risk_factors: [
-        {
-          risk_id: 'R001',
-          risk_description: 'Data inconsistency during transfer',
-          mitigation_strategy: 'Implement double validation and reconciliation process'
-        }
-      ],
-      contingency_plans: [
-        {
-          contingency_id: 'C001',
-          contingency_description: 'Rollback to Salesforce if critical issues detected',
-          trigger_condition: 'Migration failure rate exceeds 5%'
-        }
-      ]
+  test("商談ステータスを成約に変更した場合、同じ入力で2回実行しても同じ請求データが生成される", () => {
+    // Setup: テスト用の商談レコード
+    const dealRecord = {
+      dealId: "deal_test_001",
+      dealName: "テスト商談A",
+      amount: 100000,
+      customerId: "cust_001",
+      customerName: "テスト顧客001",
+      currentStatus: "提案中",
+      targetStatus: "成約",
     };
 
-    const result = createMigrationPlan(migration_plan_input);
+    // Mock: DocumentStorageAdapter
+    const mockDocumentStorage = {
+      uploadDocument: jest.fn().mockResolvedValue({
+        fileId: "doc_001",
+      }),
+      generateShareLink: jest.fn().mockResolvedValue({
+        shareLink: "https://drive.example.com/share/doc_001",
+      }),
+      deleteDocument: jest.fn().mockResolvedValue({ success: true }),
+    };
 
-    expect(result).toBeDefined();
-    expect(result.plan_id).toBeDefined();
-    expect(result.plan_name).toBe('Salesforce to Custom System Migration');
-    expect(result.description).toBe('Phase-based migration from Salesforce to self-developed CRM');
-    expect(result.migration_start_date).toBe('2024-06-01');
-    expect(result.migration_end_date).toBe('2024-12-31');
-    expect(result.status).toBe('drafted');
-    expect(result.milestones).toHaveLength(1);
-    expect(result.milestones[0]).toEqual({
-      milestone_id: 'M001',
-      milestone_name: '初期データ移行完了',
-      planned_date: '2024-07-15',
-      assigned_person: 'admin_user_001',
-      completion_criteria: 'All historical transaction data transferred and validated',
-      status: 'pending'
+    // Mock: NotificationServiceAdapter
+    const mockNotificationService = {
+      sendQuoteNotification: jest
+        .fn()
+        .mockResolvedValue({ status: "sent", messageId: "msg_001" }),
+      sendOrderNotification: jest
+        .fn()
+        .mockResolvedValue({ status: "sent", messageId: "msg_002" }),
+      sendInvoiceNotification: jest
+        .fn()
+        .mockResolvedValue({ status: "sent", messageId: "msg_003" }),
+      getDeliveryStatus: jest
+        .fn()
+        .mockResolvedValue({ status: "delivered", openedAt: null }),
+    };
+
+    // Mock: PaymentGatewayAdapter
+    const mockPaymentGateway = {
+      generatePaymentLink: jest.fn().mockResolvedValue({
+        paymentLink: "https://payment.example.com/pay/inv_001",
+        invoiceId: "inv_001",
+      }),
+      verifyPayment: jest
+        .fn()
+        .mockResolvedValue({ status: "verified", transactionId: "txn_001" }),
+      getTransactionStatus: jest
+        .fn()
+        .mockResolvedValue({ status: "pending", amount: 100000 }),
+    };
+
+    // Mock: Billing data store
+    const billingDataStore: Array<{
+      invoiceId: string;
+      amount: number;
+      fileId: string;
+      paymentLink: string;
+      dealId: string;
+      createdAt: Date;
+    }> = [];
+
+    const saveBillingData = (data: {
+      invoiceId: string;
+      amount: number;
+      fileId: string;
+      paymentLink: string;
+      dealId: string;
+      createdAt: Date;
+    }) => {
+      // Check if already exists (idempotency)
+      const existing = billingDataStore.find(
+        (record) => record.invoiceId === data.invoiceId
+      );
+      if (!existing) {
+        billingDataStore.push(data);
+      }
+    };
+
+    // First execution
+    const result1 = updateDealStatusAndGenerateBilling(
+      dealRecord,
+      mockDocumentStorage,
+      mockNotificationService,
+      mockPaymentGateway
+    );
+
+    const billingData1 = {
+      invoiceId: "inv_001",
+      amount: 100000,
+      fileId: "doc_001",
+      paymentLink: "https://payment.example.com/pay/inv_001",
+      dealId: dealRecord.dealId,
+      createdAt: new Date("2024-01-15T10:00:00Z"),
+    };
+    saveBillingData(billingData1);
+
+    expect(result1).toEqual({
+      success: true,
+      dealStatus: "成約",
+      invoiceId: "inv_001",
+      billingAmount: 100000,
     });
-    expect(result.risk_factors).toHaveLength(1);
-    expect(result.risk_factors[0]).toEqual({
-      risk_id: 'R001',
-      risk_description: 'Data inconsistency during transfer',
-      mitigation_strategy: 'Implement double validation and reconciliation process'
+
+    // Second execution with identical input
+    const result2 = updateDealStatusAndGenerateBilling(
+      dealRecord,
+      mockDocumentStorage,
+      mockNotificationService,
+      mockPaymentGateway
+    );
+
+    const billingData2 = {
+      invoiceId: "inv_001",
+      amount: 100000,
+      fileId: "doc_001",
+      paymentLink: "https://payment.example.com/pay/inv_001",
+      dealId: dealRecord.dealId,
+      createdAt: new Date("2024-01-15T10:00:00Z"),
+    };
+    saveBillingData(billingData2);
+
+    // Assertions: Billing data is identical
+    expect(result2).toEqual({
+      success: true,
+      dealStatus: "成約",
+      invoiceId: "inv_001",
+      billingAmount: 100000,
     });
-    expect(result.contingency_plans).toHaveLength(1);
-    expect(result.contingency_plans[0]).toEqual({
-      contingency_id: 'C001',
-      contingency_description: 'Rollback to Salesforce if critical issues detected',
-      trigger_condition: 'Migration failure rate exceeds 5%'
-    });
-    expect(result.created_at).toBeDefined();
-    expect(result.created_by).toBe('admin_user_001');
+
+    expect(billingData1).toEqual(billingData2);
+    expect(billingData1.invoiceId).toBe("inv_001");
+    expect(billingData1.amount).toBe(100000);
+    expect(billingData1.fileId).toBe("doc_001");
+    expect(billingData1.paymentLink).toBe(
+      "https://payment.example.com/pay/inv_001"
+    );
+
+    // No duplicate billing records
+    expect(billingDataStore).toHaveLength(1);
+
+    // Adapter call counts: uploadDocument and generatePaymentLink called only once each
+    expect(mockDocumentStorage.uploadDocument).toHaveBeenCalledTimes(1);
+    expect(mockPaymentGateway.generatePaymentLink).toHaveBeenCalledTimes(1);
+
+    // Notification service called for invoice
+    expect(mockNotificationService.sendInvoiceNotification).toHaveBeenCalledTimes(
+      2
+    );
   });
 });

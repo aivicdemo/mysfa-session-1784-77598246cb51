@@ -1,60 +1,105 @@
-import { calculateAnnualSavings } from '../../src/logic/it-1-3';
+import { updateDealStatusAndSendInvoiceNotification } from '../../src/logic/it-1-1';
 
-describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+interface NotificationServiceAdapter {
+  sendInvoiceNotification: (customerId: string, email: string, invoiceInfo: object) => Promise<{ status: number }>;
+}
+
+interface DealRecord {
+  dealId: string;
+  customerId: string;
+  status: string;
+  amount: number;
+  invoiceIssuedAt?: string;
+}
+
+// Mock database
+const mockDatabase: Map<string, DealRecord> = new Map();
+
+describe('見積・注文・請求書の自動生成機能', () => {
   // SCEN-232
-  test('ライセンス費用対効果分析機能 - Salesforceライセンス年間費用から自社システム運用コストを差し引き、年間削減額が正確に算出される', () => {
-    // 入力データ
-    const salesforceAnnualCost = 1200000;
-    const internalSystemOperationCost = 300000;
+  test('商談ステータスを成約に変更した場合、NotificationServiceAdapterで請求書発行通知メールが正常に送信される', async () => {
+    // Setup: テストデータをセットアップ
+    const testCustomerId = 'CUST-001';
+    const testCustomerEmail = 'customer@example.com';
+    const testDealId = 'DEAL-001';
+    const testDealAmount = 100000;
 
-    // 実行
-    const result = calculateAnnualSavings({
-      salesforceAnnualCost,
-      internalSystemOperationCost,
+    const initialDealRecord: DealRecord = {
+      dealId: testDealId,
+      customerId: testCustomerId,
+      status: 'progress',
+      amount: testDealAmount,
+    };
+
+    mockDatabase.set(testDealId, initialDealRecord);
+
+    // Mock NotificationServiceAdapter
+    let sendInvoiceNotificationCallCount = 0;
+    let capturedCallArgs: {
+      customerId: string;
+      email: string;
+      invoiceInfo: object;
+    } | null = null;
+
+    const mockNotificationAdapter: NotificationServiceAdapter = {
+      sendInvoiceNotification: jest.fn(async (customerId: string, email: string, invoiceInfo: object) => {
+        sendInvoiceNotificationCallCount += 1;
+        capturedCallArgs = { customerId, email, invoiceInfo };
+        return { status: 200 };
+      }),
+    };
+
+    // Mock database retrieval function
+    const mockGetDeal = jest.fn((dealId: string): DealRecord | undefined => {
+      return mockDatabase.get(dealId);
     });
 
-    // 期待値: 1,200,000 - 300,000 = 900,000
-    expect(result.annualSavingsAmount).toBe(900000);
-
-    // 通貨形式での表示を確認
-    expect(result.annualSavingsFormatted).toBe('¥900,000');
-
-    // 小数点以下が存在する場合の四捨五入を確認
-    const resultWithDecimal = calculateAnnualSavings({
-      salesforceAnnualCost: 1200000.567,
-      internalSystemOperationCost: 300000.789,
+    // Mock database update function
+    const mockUpdateDeal = jest.fn((dealId: string, updates: Partial<DealRecord>): void => {
+      const existing = mockDatabase.get(dealId);
+      if (existing) {
+        mockDatabase.set(dealId, { ...existing, ...updates });
+      }
     });
 
-    // 1,200,000.567 - 300,000.789 = 899,999.778 → 四捨五入で 900,000
-    expect(resultWithDecimal.annualSavingsAmount).toBe(900000);
-    expect(resultWithDecimal.annualSavingsFormatted).toBe('¥900,000');
+    // Mock customer retrieval
+    const mockGetCustomer = jest.fn((customerId: string) => ({
+      customerId: testCustomerId,
+      email: testCustomerEmail,
+      name: 'Test Customer',
+    }));
 
-    // 削減額が負数になるケース（自社システム運用コストがSalesforceライセンス費用より高い）
-    const resultNegative = calculateAnnualSavings({
-      salesforceAnnualCost: 500000,
-      internalSystemOperationCost: 800000,
+    // Execute: 商談ステータス更新処理を実行
+    const responseStatus = await updateDealStatusAndSendInvoiceNotification(
+      testDealId,
+      'completed',
+      mockNotificationAdapter,
+      mockGetDeal,
+      mockUpdateDeal,
+      mockGetCustomer,
+    );
+
+    // Verify: 商談ステータスが「成約」に更新されたことを確認
+    const updatedDeal = mockDatabase.get(testDealId);
+    expect(updatedDeal?.status).toBe('completed');
+
+    // Verify: NotificationServiceAdapterのsendInvoiceNotificationメソッドが呼び出されたことを確認
+    expect(mockNotificationAdapter.sendInvoiceNotification).toHaveBeenCalledTimes(1);
+
+    // Verify: 呼び出し時の引数が期待値と一致することを確認
+    expect(capturedCallArgs?.customerId).toBe(testCustomerId);
+    expect(capturedCallArgs?.email).toBe(testCustomerEmail);
+    expect(capturedCallArgs?.invoiceInfo).toEqual({
+      dealId: testDealId,
+      amount: testDealAmount,
+      status: 'completed',
     });
 
-    // 500,000 - 800,000 = -300,000
-    expect(resultNegative.annualSavingsAmount).toBe(-300000);
-    expect(resultNegative.annualSavingsFormatted).toBe('-¥300,000');
+    // Verify: メール送信完了ステータスコードが200（成功）であることを確認
+    expect(responseStatus).toBe(200);
 
-    // 削減額がゼロになるケース
-    const resultZero = calculateAnnualSavings({
-      salesforceAnnualCost: 500000,
-      internalSystemOperationCost: 500000,
-    });
-
-    expect(resultZero.annualSavingsAmount).toBe(0);
-    expect(resultZero.annualSavingsFormatted).toBe('¥0');
-
-    // ROI計算を確認（年間削減額 ÷ 初期投資額で投資回収期間を示唆）
-    expect(result.roi).toBeDefined();
-    expect(typeof result.roi).toBe('number');
-
-    // 結果構造の検証
-    expect(result).toHaveProperty('annualSavingsAmount');
-    expect(result).toHaveProperty('annualSavingsFormatted');
-    expect(result).toHaveProperty('roi');
+    // Verify: データベースの商談レコード内に「invoiceIssuedAt」フィールドが記録されていることを確認
+    expect(updatedDeal?.invoiceIssuedAt).toBeDefined();
+    expect(typeof updatedDeal?.invoiceIssuedAt).toBe('string');
   });
 });

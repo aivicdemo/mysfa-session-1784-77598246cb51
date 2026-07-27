@@ -1,146 +1,56 @@
-import { fetchDealAndActivityRecords } from "../../src/logic/it-1";
+import { aggregateMonthlySalesAmount } from '../../src/logic/it-1-3';
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-150
-  test("商談・活動記録の時系列ソート表示機能 - 商談と活動記録が最新順にソートされ直近100件まで正しく表示される", async () => {
-    const userId = "user_001";
-    const customerId = "cust_001";
-
-    // テストデータ: 過去6ヶ月間にわたる商談記録と活動記録を準備
-    // 古い順に日時を生成（後で期待値と照合するため）
-    const generateRecords = () => {
-      const records = [];
-      const baseDate = new Date("2024-01-01T09:00:00Z");
-
-      // 150件の商談記録と150件の活動記録を生成（計300件）
-      for (let i = 0; i < 150; i++) {
-        const dealDate = new Date(
-          baseDate.getTime() + i * 24 * 60 * 60 * 1000
-        );
-        records.push({
-          id: `deal_${String(i).padStart(3, "0")}`,
-          type: "deal",
-          customerId: customerId,
-          createdAt: dealDate.toISOString(),
-          title: `商談 ${i + 1}`,
-          amount: 100000 + i * 1000,
-          status: "negotiation",
-        });
-      }
-
-      for (let i = 0; i < 150; i++) {
-        const activityDate = new Date(
-          baseDate.getTime() + i * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000
-        );
-        records.push({
-          id: `activity_${String(i).padStart(3, "0")}`,
-          type: "activity",
-          customerId: customerId,
-          createdAt: activityDate.toISOString(),
-          activityType: "email",
-          description: `活動記録 ${i + 1}`,
-        });
-      }
-
-      return records;
+  test('当月商談金額集計機能 - 明細行の金額がnullのとき例外が発生する', () => {
+    const dealWithNullAmount = {
+      dealId: 'DEAL-001',
+      customerId: 'CUST-001',
+      dealDate: '2024-01-15',
+      lineItems: [
+        {
+          lineItemId: 'LINE-001',
+          productId: 'PROD-001',
+          quantity: 2,
+          unitPrice: 50000,
+          amount: 100000,
+        },
+        {
+          lineItemId: 'LINE-002',
+          productId: 'PROD-002',
+          quantity: 1,
+          unitPrice: 30000,
+          amount: null,
+        },
+      ],
     };
 
-    const mockRecords = generateRecords();
+    expect(() => aggregateMonthlySalesAmount([dealWithNullAmount])).toThrow(/金額/);
+  });
 
-    // API レスポンスのモック
-    const fetchMock = require("jest-fetch-mock");
-    fetchMock.enableMocks();
-    fetchMock.resetMocks();
+  test('当月商談金額集計機能 - 明細行の金額がundefinedのとき例外が発生する', () => {
+    const dealWithUndefinedAmount = {
+      dealId: 'DEAL-002',
+      customerId: 'CUST-002',
+      dealDate: '2024-01-20',
+      lineItems: [
+        {
+          lineItemId: 'LINE-003',
+          productId: 'PROD-003',
+          quantity: 3,
+          unitPrice: 25000,
+          amount: 75000,
+        },
+        {
+          lineItemId: 'LINE-004',
+          productId: 'PROD-004',
+          quantity: 2,
+          unitPrice: 40000,
+          amount: undefined,
+        },
+      ],
+    };
 
-    fetchMock.mockResponseOnce(
-      JSON.stringify({
-        success: true,
-        data: mockRecords,
-      }),
-      { status: 200 }
-    );
-
-    // 関数を実行（ユーザーID、顧客ID、ソート順序を指定）
-    const result = await fetchDealAndActivityRecords(
-      userId,
-      customerId,
-      "newest"
-    );
-
-    // 結果の検証
-    expect(result).toBeDefined();
-    expect(result.data).toBeDefined();
-    expect(Array.isArray(result.data)).toBe(true);
-
-    // 直近100件までの表示を確認
-    expect(result.data.length).toBe(100);
-
-    // 最新順（新しい順・降順）にソートされているか確認
-    for (let i = 0; i < result.data.length - 1; i++) {
-      const currentDate = new Date(result.data[i].createdAt);
-      const nextDate = new Date(result.data[i + 1].createdAt);
-      expect(currentDate.getTime()).toBeGreaterThanOrEqual(nextDate.getTime());
-    }
-
-    // 最初の10件の日時を確認（新しい順であることを検証）
-    const firstTenDates = result.data.slice(0, 10).map((r) => r.createdAt);
-    for (let i = 0; i < 9; i++) {
-      const current = new Date(firstTenDates[i]);
-      const next = new Date(firstTenDates[i + 1]);
-      expect(current.getTime()).toBeGreaterThanOrEqual(next.getTime());
-    }
-
-    // 最後に表示されている記録が100件目であることを確認
-    const lastRecordIndex = 99; // 0ベースなので99が100件目
-    expect(result.data[lastRecordIndex]).toBeDefined();
-
-    // 101件目以降の記録が返されていないことを確認
-    expect(result.data.length).toBeLessThanOrEqual(100);
-
-    // 記録に商談と活動記録の両方が含まれていることを確認
-    const hasDeals = result.data.some((r) => r.type === "deal");
-    const hasActivities = result.data.some((r) => r.type === "activity");
-    expect(hasDeals).toBe(true);
-    expect(hasActivities).toBe(true);
-
-    // ページリロード後の表示順序が変わらないことを確認するため、
-    // 同じパラメータで再度リクエストを実行
-    fetchMock.resetMocks();
-    fetchMock.mockResponseOnce(
-      JSON.stringify({
-        success: true,
-        data: mockRecords,
-      }),
-      { status: 200 }
-    );
-
-    const resultAfterReload = await fetchDealAndActivityRecords(
-      userId,
-      customerId,
-      "newest"
-    );
-
-    // リロード前後で表示順序が一致していることを確認
-    expect(resultAfterReload.data.length).toBe(100);
-    for (let i = 0; i < 100; i++) {
-      expect(resultAfterReload.data[i].id).toBe(result.data[i].id);
-      expect(resultAfterReload.data[i].createdAt).toBe(result.data[i].createdAt);
-    }
-
-    // 商談と活動記録の正確な情報が保持されていることを確認
-    const dealRecordsInResult = result.data.filter((r) => r.type === "deal");
-    const activityRecordsInResult = result.data.filter(
-      (r) => r.type === "activity"
-    );
-
-    if (dealRecordsInResult.length > 0) {
-      expect(dealRecordsInResult[0]).toHaveProperty("amount");
-      expect(dealRecordsInResult[0]).toHaveProperty("status");
-    }
-
-    if (activityRecordsInResult.length > 0) {
-      expect(activityRecordsInResult[0]).toHaveProperty("activityType");
-      expect(activityRecordsInResult[0]).toHaveProperty("description");
-    }
+    expect(() => aggregateMonthlySalesAmount([dealWithUndefinedAmount])).toThrow(/金額/);
   });
 });

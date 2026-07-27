@@ -1,15 +1,27 @@
-import { updateDealStatusToContracted } from "../../src/logic/it-1784969823049-2-1-1";
+import { aggregateMonthlySalesTotal } from '../../src/logic/it-1-3';
 
-describe("商談レコードの進捗ステータスと提案内容の入力・保存機能", () => {
-  test("// SCEN-127: [error] 商談ステータス更新・請求データ紐付け機能 - 明細データが空の商談を『成約』に更新すると拒否される", () => {
-    const dealRecord = {
-      dealId: "DL-001",
-      customerId: "CUST-001",
-      dealAmount: 500000,
-      dealStatus: "提案中",
-      invoiceDetails: [],
-    };
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  // SCEN-127
+  test('当月売上集計機能 - 当月商談が1件のとき売上合計がその商談金額と一致する', () => {
+    const current_date = new Date('2024-01-15T09:00:00Z');
+    const deal_date = new Date('2024-01-10T10:30:00Z');
 
-    expect(() => updateDealStatusToContracted(dealRecord)).toThrow(/明細/);
+    const monthly_deals = [
+      {
+        deal_id: 'DEAL-001',
+        customer_id: 'CUST-100',
+        customer_name: 'Sample Company Ltd.',
+        deal_amount: 500000,
+        deal_status: '成約',
+        deal_date: deal_date,
+      },
+    ];
+
+    const result = aggregateMonthlySalesTotal(monthly_deals, current_date);
+
+    expect(result.monthly_sales_total).toBe(500000);
+    expect(result.deal_count).toBe(1);
+    expect(result.target_period_start).toEqual(new Date('2024-01-01T00:00:00Z'));
+    expect(result.target_period_end).toEqual(new Date('2024-01-31T23:59:59Z'));
   });
 });

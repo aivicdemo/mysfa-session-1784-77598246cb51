@@ -1,103 +1,111 @@
-import { calculateCumulativeCostWithRounding } from "../../src/logic/it-1-3";
+import { describe, test, expect, beforeEach, afterEach } from '@jest/globals';
+import { verifyInvoiceIssuanceWithFiscalYearCrossing } from '../../src/logic/it-1784969823049-1-1-1';
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
+// Mock for DocumentStorageAdapter
+interface DocumentStorageAdapterStub {
+  uploadDocument: jest.Mock;
+  generateShareLink: jest.Mock;
+  deleteDocument: jest.Mock;
+}
+
+describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
+  let documentStorageAdapterStub: DocumentStorageAdapterStub;
+
+  beforeEach(() => {
+    documentStorageAdapterStub = {
+      uploadDocument: jest.fn().mockResolvedValue({
+        documentId: 'doc-12345',
+        uploadedAt: '2024-03-15T09:00:00Z',
+        storageUrl: 'https://storage.example.com/doc-12345'
+      }),
+      generateShareLink: jest.fn().mockResolvedValue({
+        shareLink: 'https://share.example.com/doc-12345',
+        expiresAt: '2024-04-15T23:59:59Z'
+      }),
+      deleteDocument: jest.fn().mockResolvedValue({ success: true })
+    };
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   // SCEN-295
-  test("複数年度コスト比較・ROI計算機能 - 5年目の累積コスト計算時に小数点以下の丸め処理が統一される", () => {
-    // 初期投資額: 100,000円
-    // 年間運用コスト: 12,345.6789円
-    // 計算対象年数: 5年
-    // 期待される計算結果（四捨五入、小数点以下第2位まで）:
-    // 1年目: 100,000 + 12,345.68 = 112,345.68
-    // 2年目: 112,345.68 + 12,345.68 = 124,691.36
-    // 3年目: 124,691.36 + 12,345.68 = 137,037.04
-    // 4年目: 137,037.04 + 12,345.68 = 149,382.72
-    // 5年目: 149,382.72 + 12,345.68 = 161,728.40
+  test('商談ステータスと請求データの紐付け・可視化 - 請求書の発行日が年度をまたぐとき、期日ズレの判定が正常に実行される', async () => {
+    const dealRecord = {
+      dealId: 'deal-001',
+      customerId: 'cust-001',
+      dealAmount: 1000000,
+      dealStatus: '受注',
+      createdAt: '2024-01-10T08:00:00Z'
+    };
 
-    const initialInvestment = 100000;
-    const annualOperatingCost = 12345.6789;
-    const years = 5;
+    const invoiceData = {
+      invoiceId: 'inv-001',
+      dealId: 'deal-001',
+      customerId: 'cust-001',
+      invoiceAmount: 1000000,
+      issueDate: new Date('2024-03-15'),
+      dueDate: new Date('2024-04-15'),
+      fiscalYearCrossingFlag: true,
+      invoiceStatus: '発行済'
+    };
 
-    // 初回計算
-    const result1 = calculateCumulativeCostWithRounding({
-      initialInvestment,
-      annualOperatingCost,
-      years,
+    const invoiceContent = {
+      invoiceId: 'inv-001',
+      customerId: 'cust-001',
+      amount: 1000000,
+      issueDate: '2024-03-15',
+      dueDate: '2024-04-15',
+      items: [
+        {
+          itemId: 'item-001',
+          description: 'Product A',
+          quantity: 1,
+          unitPrice: 1000000,
+          lineTotal: 1000000
+        }
+      ]
+    };
+
+    const pdfContent = 'mock-pdf-binary-content';
+
+    const verificationResult = await verifyInvoiceIssuanceWithFiscalYearCrossing(
+      dealRecord,
+      invoiceData,
+      invoiceContent,
+      pdfContent,
+      documentStorageAdapterStub
+    );
+
+    expect(documentStorageAdapterStub.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceId: 'inv-001',
+        pdfContent: 'mock-pdf-binary-content'
+      })
+    );
+
+    expect(verificationResult).toEqual({
+      invoiceId: 'inv-001',
+      dealId: 'deal-001',
+      dealStatus: '受注',
+      invoiceIssueDate: '2024-03-15',
+      invoiceDueDate: '2024-04-15',
+      fiscalYearCrossingDetected: true,
+      issueDateFiscalYear: '2024年度',
+      dueDateFiscalYear: '2025年度',
+      verificationStatus: '警告',
+      verificationReason: '発行日（2024年度）と期日（2025年度）が異なる会計年度に跨がっているため、期日ズレリスク有り',
+      invoiceAttachmentId: 'doc-12345',
+      invoiceAttachmentUrl: 'https://storage.example.com/doc-12345',
+      recordedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
     });
 
-    expect(result1).toBe(161728.4);
-
-    // 複数回同じ条件で計算し、一貫性を検証
-    const result2 = calculateCumulativeCostWithRounding({
-      initialInvestment,
-      annualOperatingCost,
-      years,
-    });
-
-    expect(result2).toBe(161728.4);
-    expect(result1).toBe(result2);
-
-    // 異なる小数点以下のパターンをテスト
-    // パターン1: 0.1円
-    const costPattern1 = 12345.1;
-    const resultPattern1 = calculateCumulativeCostWithRounding({
-      initialInvestment,
-      annualOperatingCost: costPattern1,
-      years,
-    });
-
-    // 期待値: 100,000 + (12,345.1 * 5) = 100,000 + 61,725.5 = 161,725.5
-    expect(resultPattern1).toBe(161725.5);
-
-    // パターン2: 0.05円
-    const costPattern2 = 12345.05;
-    const resultPattern2 = calculateCumulativeCostWithRounding({
-      initialInvestment,
-      annualOperatingCost: costPattern2,
-      years,
-    });
-
-    // 期待値: 100,000 + (12,345.05 * 5) = 100,000 + 61,725.25 = 161,725.25
-    expect(resultPattern2).toBe(161725.25);
-
-    // パターン3: 0.001円
-    const costPattern3 = 12345.001;
-    const resultPattern3 = calculateCumulativeCostWithRounding({
-      initialInvestment,
-      annualOperatingCost: costPattern3,
-      years,
-    });
-
-    // 期待値: 100,000 + (12,345.001 * 5) = 100,000 + 61,725.005 ≈ 161,725.01（四捨五入）
-    expect(resultPattern3).toBe(161725.01);
-
-    // 異なる年数での一貫性確認
-    const result3Years = calculateCumulativeCostWithRounding({
-      initialInvestment,
-      annualOperatingCost,
-      years: 3,
-    });
-
-    // 3年目の期待値: 100,000 + (12,345.6789 * 3) = 100,000 + 37,037.04 = 137,037.04
-    expect(result3Years).toBe(137037.04);
-
-    // 複数回の計算で同じ結果が得られることを確認
-    const result3YearsSecond = calculateCumulativeCostWithRounding({
-      initialInvestment,
-      annualOperatingCost,
-      years: 3,
-    });
-
-    expect(result3Years).toBe(result3YearsSecond);
-
-    // より大きい小数点以下の精度を持つコストでのテスト
-    const costHighPrecision = 12345.6789123456;
-    const resultHighPrecision = calculateCumulativeCostWithRounding({
-      initialInvestment,
-      annualOperatingCost: costHighPrecision,
-      years,
-    });
-
-    // 期待値: 100,000 + (12,345.6789123456 * 5) ≈ 161,728.40（四捨五入後）
-    expect(resultHighPrecision).toBe(161728.4);
+    expect(verificationResult.dealStatus).toBe('受注');
+    expect(verificationResult.verificationStatus).toBe('警告');
+    expect(verificationResult.verificationReason).toContain('年度に跨がっているため');
+    expect(verificationResult.fiscalYearCrossingDetected).toBe(true);
+    expect(verificationResult.issueDateFiscalYear).toBe('2024年度');
+    expect(verificationResult.dueDateFiscalYear).toBe('2025年度');
   });
 });

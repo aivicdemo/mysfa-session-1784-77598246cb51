@@ -1,64 +1,139 @@
-import { validateInvoiceContent } from "../../src/logic/it-1-3";
+import { describe, test, expect, beforeEach, jest } from "@jest/globals";
+import type {
+  DealUpdateRequest,
+  DealUpdateResponse,
+  DocumentStorageAdapter,
+  NotificationServiceAdapter,
+  PaymentGatewayAdapter,
+} from "../../src/logic/it-1784969823049-2-1-1";
+import {
+  updateDealStatusToContracted,
+} from "../../src/logic/it-1784969823049-2-1-1";
 
-describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
-  // SCEN-216
-  test("顧客請求内容照合検証 - 請求金額・明細・税額が全て期待値と一致した場合に検証完了と判定される", () => {
-    const invoiceData = {
-      customerId: "CUST-001",
-      invoiceMonth: "2024-04",
-      invoiceAmount: 100000,
-      invoiceDetails: [
-        {
-          itemId: "ITEM-A",
-          itemName: "商品A",
-          quantity: 10,
-          unitPrice: 5000,
-          lineAmount: 50000,
-        },
-        {
-          itemId: "ITEM-B",
-          itemName: "商品B",
-          quantity: 10,
-          unitPrice: 5000,
-          lineAmount: 50000,
-        },
-      ],
-      taxAmount: 10000,
-      totalAmount: 110000,
-      taxRate: 0.1,
+describe("商談レコードの進捗ステータスと提案内容の入力・保存機能", () => {
+  let mockDocumentStorageAdapter: jest.Mocked<DocumentStorageAdapter>;
+  let mockNotificationServiceAdapter: jest.Mocked<NotificationServiceAdapter>;
+  let mockPaymentGatewayAdapter: jest.Mocked<PaymentGatewayAdapter>;
+
+  beforeEach(() => {
+    mockDocumentStorageAdapter = {
+      uploadDocument: jest.fn().mockResolvedValue({
+        documentId: "doc_12345",
+        url: "https://example.com/docs/doc_12345",
+      }),
+      generateShareLink: jest.fn().mockResolvedValue({
+        shareLink: "https://example.com/share/token_abc123",
+        expiresAt: "2024-02-15T23:59:59Z",
+      }),
+      deleteDocument: jest.fn().mockResolvedValue({ success: true }),
     };
 
-    const expectedInvoiceAmount = 100000;
-    const expectedLineItems = [
-      {
-        itemId: "ITEM-A",
-        itemName: "商品A",
-        quantity: 10,
-        unitPrice: 5000,
-        lineAmount: 50000,
-      },
-      {
-        itemId: "ITEM-B",
-        itemName: "商品B",
-        quantity: 10,
-        unitPrice: 5000,
-        lineAmount: 50000,
-      },
-    ];
-    const expectedTaxAmount = 10000;
-    const expectedTotalAmount = 110000;
-    const expectedVerificationStatus = "検証完了";
+    mockNotificationServiceAdapter = {
+      sendQuoteNotification: jest.fn().mockResolvedValue({
+        messageId: "msg_quote_001",
+        sentAt: "2024-01-15T11:00:00Z",
+      }),
+      sendOrderNotification: jest.fn().mockResolvedValue({
+        messageId: "msg_order_001",
+        sentAt: "2024-01-15T11:00:00Z",
+      }),
+      sendInvoiceNotification: jest.fn().mockResolvedValue({
+        messageId: "msg_invoice_001",
+        sentAt: "2024-01-15T11:00:00Z",
+      }),
+      getDeliveryStatus: jest.fn().mockResolvedValue({
+        status: "delivered",
+        openedAt: "2024-01-15T12:30:00Z",
+      }),
+    };
 
-    const result = validateInvoiceContent(invoiceData);
+    mockPaymentGatewayAdapter = {
+      generatePaymentLink: jest.fn().mockResolvedValue({
+        paymentLinkId: "pay_link_001",
+        url: "https://payment.example.com/pay/token_xyz789",
+        expiresAt: "2024-01-22T23:59:59Z",
+      }),
+      verifyPayment: jest.fn().mockResolvedValue({
+        transactionId: "txn_001",
+        status: "completed",
+        verifiedAt: "2024-01-15T11:30:00Z",
+      }),
+      getTransactionStatus: jest.fn().mockResolvedValue({
+        transactionId: "txn_001",
+        status: "completed",
+        amount: 1234567.89,
+      }),
+    };
+  });
 
-    expect(result.invoiceAmount).toBe(expectedInvoiceAmount);
-    expect(result.invoiceDetails).toEqual(expectedLineItems);
-    expect(result.taxAmount).toBe(expectedTaxAmount);
-    expect(result.totalAmount).toBe(expectedTotalAmount);
-    expect(result.verificationStatus).toBe(expectedVerificationStatus);
-    expect(result.verificationCompletedAt).toBeDefined();
-    expect(result.verificationMessage).toBe(
-      "請求内容の検証が完了しました。"
+  // SCEN-216
+  test("商談ステータスを成約に変更する際、必須項目チェックで商談金額が小数を含む場合にステータス更新が成功する", async () => {
+    const dealUpdateRequest: DealUpdateRequest = {
+      dealId: "deal_001",
+      customerId: "cust_001",
+      customerName: "テスト株式会社",
+      dealName: "2024年システム導入案件",
+      dealAmount: 1234567.89,
+      status: "contracted",
+      dealDetailLines: [
+        {
+          lineId: "line_001",
+          productId: "prod_001",
+          productName: "システム導入サービス",
+          quantity: 1,
+          unitPrice: 1000000.0,
+          lineTotal: 1000000.0,
+        },
+        {
+          lineId: "line_002",
+          productId: "prod_002",
+          productName: "導入コンサルティング",
+          quantity: 1,
+          unitPrice: 234567.89,
+          lineTotal: 234567.89,
+        },
+      ],
+      userId: "user_001",
+    };
+
+    const result: DealUpdateResponse = await updateDealStatusToContracted(
+      dealUpdateRequest,
+      mockDocumentStorageAdapter,
+      mockNotificationServiceAdapter,
+      mockPaymentGatewayAdapter
     );
+
+    expect(result.success).toBe(true);
+    expect(result.dealId).toBe("deal_001");
+    expect(result.status).toBe("contracted");
+    expect(result.dealAmount).toBe(1234567.89);
+    expect(result.message).toBe("商談を更新しました");
+
+    expect(mockDocumentStorageAdapter.uploadDocument).toHaveBeenCalled();
+    expect(mockNotificationServiceAdapter.sendInvoiceNotification).toHaveBeenCalled();
+    expect(mockPaymentGatewayAdapter.generatePaymentLink).toHaveBeenCalled();
+
+    const uploadCall = mockDocumentStorageAdapter.uploadDocument.mock.calls[0];
+    expect(uploadCall).toBeDefined();
+    expect(uploadCall[0]).toMatchObject({
+      dealId: "deal_001",
+      documentType: "invoice",
+    });
+
+    const invoiceNotificationCall =
+      mockNotificationServiceAdapter.sendInvoiceNotification.mock.calls[0];
+    expect(invoiceNotificationCall).toBeDefined();
+    expect(invoiceNotificationCall[0]).toMatchObject({
+      customerId: "cust_001",
+      dealAmount: 1234567.89,
+    });
+
+    const paymentLinkCall =
+      mockPaymentGatewayAdapter.generatePaymentLink.mock.calls[0];
+    expect(paymentLinkCall).toBeDefined();
+    expect(paymentLinkCall[0]).toMatchObject({
+      dealId: "deal_001",
+      amount: 1234567.89,
+    });
   });
 });

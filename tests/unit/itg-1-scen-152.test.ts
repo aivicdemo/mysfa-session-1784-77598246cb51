@@ -1,26 +1,26 @@
-import { fetchCustomerActivityRecords } from "../../src/logic/it-1";
+import { aggregateMonthlySalesAmount } from "../../src/logic/it-1-3";
 
-describe("顧客レコード画面に過去の商談履歴・活動記録・課題解決状況を時系列で表示する機能", () => {
-  // SCEN-152
-  test("商談・活動記録が存在しない場合に空の結果セットが返される", () => {
-    const customerId = "CUST-999999";
-    const lookbackDays = 365;
+describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
+  // SCEN-152: [edge] 当月商談金額集計機能 - 明細行に0円が含まれるとき売上合計に影響しない
+  test("明細行に0円が含まれる場合、売上合計は有効金額のみで正確に集計される", () => {
+    const dealLineItems = [
+      {
+        dealLineId: "line_001",
+        dealAmount: 100000,
+      },
+      {
+        dealLineId: "line_002",
+        dealAmount: 0,
+      },
+      {
+        dealLineId: "line_003",
+        dealAmount: 50000,
+      },
+    ];
 
-    const result = fetchCustomerActivityRecords(customerId, lookbackDays);
+    const result = aggregateMonthlySalesAmount(dealLineItems);
 
-    expect(result).toEqual({
-      dealRecords: [],
-      activityRecords: [],
-      issueResolutionRecords: [],
-      hasData: false,
-      message: "該当する商談・活動記録がありません",
-    });
-    expect(Array.isArray(result.dealRecords)).toBe(true);
-    expect(Array.isArray(result.activityRecords)).toBe(true);
-    expect(Array.isArray(result.issueResolutionRecords)).toBe(true);
-    expect(result.dealRecords.length).toBe(0);
-    expect(result.activityRecords.length).toBe(0);
-    expect(result.issueResolutionRecords.length).toBe(0);
-    expect(result.hasData).toBe(false);
+    expect(result.totalSalesAmount).toBe(150000);
+    expect(result.processedLineCount).toBe(3);
   });
 });

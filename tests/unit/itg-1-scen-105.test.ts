@@ -1,21 +1,46 @@
-import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { checkMonthlyReportDeadline } from '../../src/logic/it-1-3';
+import { describe, test, expect, beforeEach, afterEach } from '@jest/globals';
+import { extractCustomersByPeriod } from '../../src/logic/it-1';
 
-describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+describe('顧客レコード画面の過去商談履歴・活動記録表示機能', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   // SCEN-105
-  test('月次報告期限判定機能 - 現在日時が月次報告期限に到達した場合に期限到達フラグがtrueとなる', () => {
-    const now_date_str = '2024-04-15T23:59:59Z';
-    const deadline_date_str = '2024-04-15T23:59:59Z';
-    const now_date = new Date(now_date_str);
-    const deadline_date = new Date(deadline_date_str);
+  test('月次報告期限・データ抽出処理 - 抽出対象期間内に作成された顧客レコード0件の場合、空の顧客リストが返される', () => {
+    // 抽出対象期間を指定（2024年1月1日〜2024年1月31日）
+    const extractStartDate = new Date('2024-01-01T00:00:00Z');
+    const extractEndDate = new Date('2024-01-31T23:59:59Z');
 
-    jest.useFakeTimers();
-    jest.setSystemTime(now_date);
+    // 抽出対象期間内に作成された顧客レコードが0件の状態
+    const mockDatabaseQuery = jest.fn().mockReturnValue([]);
 
-    const result = checkMonthlyReportDeadline(deadline_date);
+    // データ抽出処理を実行
+    const result = extractCustomersByPeriod(
+      extractStartDate,
+      extractEndDate,
+      mockDatabaseQuery
+    );
 
-    expect(result).toBe(true);
+    // 期待結果の検証
+    // 1. 戻り値が空配列 [] であること
+    expect(result).toEqual([]);
 
-    jest.useRealTimers();
+    // 2. 顧客リストのレコード数がゼロであること
+    expect(result.length).toBe(0);
+
+    // 3. 戻り値のデータ型が配列（array）であること
+    expect(Array.isArray(result)).toBe(true);
+
+    // 4. 関数が期待通りに呼ばれたことを確認（エラーが発生せず正常に完了）
+    expect(mockDatabaseQuery).toHaveBeenCalledWith({
+      startDate: extractStartDate,
+      endDate: extractEndDate,
+    });
+    expect(mockDatabaseQuery).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,37 +1,60 @@
-import { generateInvoice } from '../../src/logic/it-1-1';
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe('見積・注文・請求書の自動生成機能', () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-177
-  test('請求明細が0件の商談からは請求書が生成されないか、空白請求書となる', () => {
-    const deal_id = 'DEAL-20240115-001';
-    const customer_id = 'CUST-00001';
-    const customer_name = '株式会社テスト';
-    const deal_amount = 0;
-    const invoice_line_items: Array<{
-      line_item_id: string;
-      product_id: string;
-      quantity: number;
-      unit_price: number;
-      line_total: number;
-    }> = [];
+  test('顧客別商談進捗集計機能 - 失注ステータスの商談件数が0件のとき、その件数が0として集計される', () => {
+    const customerId = 'CUST-001';
+    const deals = [
+      {
+        dealId: 'DEAL-001',
+        customerId: customerId,
+        status: '進行中',
+        amount: 100000,
+      },
+      {
+        dealId: 'DEAL-002',
+        customerId: customerId,
+        status: '進行中',
+        amount: 150000,
+      },
+      {
+        dealId: 'DEAL-003',
+        customerId: customerId,
+        status: '進行中',
+        amount: 200000,
+      },
+      {
+        dealId: 'DEAL-004',
+        customerId: customerId,
+        status: '成約',
+        amount: 500000,
+      },
+      {
+        dealId: 'DEAL-005',
+        customerId: customerId,
+        status: '成約',
+        amount: 300000,
+      },
+    ];
 
-    const deal_data = {
-      deal_id,
-      customer_id,
-      customer_name,
-      deal_amount,
-      invoice_line_items,
-      deal_status: 'won',
-    };
-
-    const result = generateInvoice(deal_data);
+    const result = aggregateDealProgressByCustomer(customerId, deals);
 
     expect(result).toEqual({
-      success: false,
-      error_message: '請求対象となる明細がありません',
-      invoice_id: null,
-      invoice_amount: 0,
-      invoice_line_count: 0,
+      customerId: customerId,
+      progressSummary: {
+        '進行中': {
+          count: 3,
+          totalAmount: 450000,
+        },
+        '成約': {
+          count: 2,
+          totalAmount: 800000,
+        },
+        '失注': {
+          count: 0,
+          totalAmount: 0,
+        },
+      },
     });
   });
 });

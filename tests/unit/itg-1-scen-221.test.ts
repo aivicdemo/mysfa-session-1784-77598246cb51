@@ -1,120 +1,141 @@
-import { detectUnbilledDealsByStatusAndInvoiceStatus } from '../../src/logic/it-1784969823049-1-1-1';
+import { updateDealStatusAndLinkInvoice } from '../../src/logic/it-1784969823049-1-1-1';
 
 describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
   // SCEN-221
-  test('商談ステータスが受注であるが請求書が発行されていない案件が未請求として検出される', () => {
-    // 前提: 商談レコードが営業管理システムに存在し、ステータスと請求書発行状況のデータが記録されている状態
-    const deals = [
-      {
-        dealId: 'DEAL-001',
-        customerId: 'CUST-A',
-        customerName: '顧客A株式会社',
+  test('商談ステータスを成約に変更する際、請求データ紐付けで商談と請求書の関連付けが正常に実行される', () => {
+    // テスト用の顧客データ
+    const customer = {
+      customer_id: 'CUST-001',
+      customer_name: '山田商事',
+      email: 'contact@yamada-shoji.jp',
+    };
+
+    // 商談データ
+    const deal = {
+      deal_id: 'DEAL-001',
+      deal_name: '大型案件',
+      customer_id: 'CUST-001',
+      status: '提案中',
+      amount: 500000,
+      details: [
+        {
+          description: 'サービス提供',
+          quantity: 1,
+          unit_price: 500000,
+        },
+      ],
+    };
+
+    // DocumentStorageAdapterのスタブ
+    const mockDocumentStorage = {
+      uploadDocument: jest.fn().mockResolvedValue({
+        document_id: 'DOC-001',
+        storage_url: 'https://storage.example.com/invoices/DOC-001.pdf',
+        upload_timestamp: '2024-01-15T11:00:00Z',
+      }),
+      generateShareLink: jest.fn().mockResolvedValue({
+        share_link: 'https://share.example.com/DOC-001?token=abc123',
+        expiry: '2024-02-15T11:00:00Z',
+      }),
+      deleteDocument: jest.fn().mockResolvedValue({ success: true }),
+    };
+
+    // NotificationServiceAdapterのスタブ
+    const mockNotificationService = {
+      sendInvoiceNotification: jest.fn().mockResolvedValue({
+        notification_id: 'NOTIF-001',
+        status: 'sent',
+        delivery_timestamp: '2024-01-15T11:05:00Z',
+      }),
+      sendQuoteNotification: jest.fn().mockResolvedValue({
+        notification_id: 'NOTIF-002',
+        status: 'sent',
+      }),
+      sendOrderNotification: jest.fn().mockResolvedValue({
+        notification_id: 'NOTIF-003',
+        status: 'sent',
+      }),
+      getDeliveryStatus: jest.fn().mockResolvedValue({
+        notification_id: 'NOTIF-001',
+        status: 'delivered',
+        opened: true,
+      }),
+    };
+
+    // PaymentGatewayAdapterのスタブ
+    const mockPaymentGateway = {
+      generatePaymentLink: jest.fn().mockResolvedValue({
+        payment_link_id: 'PAY-001',
+        payment_link: 'https://payment.example.com/PAY-001',
         amount: 500000,
-        status: '受注',
-        invoiceIssued: false,
-        invoiceIssuedDate: null,
-        invoiceAmount: null,
-      },
-      {
-        dealId: 'DEAL-002',
-        customerId: 'CUST-B',
-        customerName: '顧客B有限会社',
-        amount: 300000,
-        status: '受注',
-        invoiceIssued: false,
-        invoiceIssuedDate: null,
-        invoiceAmount: null,
-      },
-      {
-        dealId: 'DEAL-003',
-        customerId: 'CUST-C',
-        customerName: '顧客C株式会社',
-        amount: 750000,
-        status: '受注',
-        invoiceIssued: true,
-        invoiceIssuedDate: '2024-04-10T00:00:00Z',
-        invoiceAmount: 750000,
-      },
-      {
-        dealId: 'DEAL-004',
-        customerId: 'CUST-D',
-        customerName: '顧客D株式会社',
-        amount: 200000,
-        status: '提案中',
-        invoiceIssued: false,
-        invoiceIssuedDate: null,
-        invoiceAmount: null,
-      },
-      {
-        dealId: 'DEAL-005',
-        customerId: 'CUST-E',
-        customerName: '顧客E企業',
-        amount: 600000,
-        status: '受注',
-        invoiceIssued: true,
-        invoiceIssuedDate: '2024-04-15T00:00:00Z',
-        invoiceAmount: 600000,
-      },
-    ];
+        currency: 'JPY',
+        expiry: '2024-01-22T11:00:00Z',
+      }),
+      verifyPayment: jest.fn().mockResolvedValue({
+        transaction_id: 'TXN-001',
+        status: 'completed',
+        amount: 500000,
+      }),
+      getTransactionStatus: jest.fn().mockResolvedValue({
+        transaction_id: 'TXN-001',
+        status: 'pending',
+      }),
+    };
 
-    // 期待結果: 商談ステータスが「受注」かつ請求書が未発行の案件を「未請求案件」として特定
-    const result = detectUnbilledDealsByStatusAndInvoiceStatus(deals);
-
-    // 検証1: 未請求案件が正確に検出されること
-    expect(result.unbilledDeals).toHaveLength(2);
-
-    // 検証2: 検出された未請求案件の詳細情報が正確に表示されること
-    expect(result.unbilledDeals).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dealId: 'DEAL-001',
-          customerId: 'CUST-A',
-          customerName: '顧客A株式会社',
-          amount: 500000,
-          status: '受注',
-          invoiceIssued: false,
-        }),
-        expect.objectContaining({
-          dealId: 'DEAL-002',
-          customerId: 'CUST-B',
-          customerName: '顧客B有限会社',
-          amount: 300000,
-          status: '受注',
-          invoiceIssued: false,
-        }),
-      ])
+    // 関数を実行
+    const result = updateDealStatusAndLinkInvoice(
+      deal,
+      customer,
+      {
+        documentStorage: mockDocumentStorage,
+        notificationService: mockNotificationService,
+        paymentGateway: mockPaymentGateway,
+      }
     );
 
-    // 検証3: 請求済みの受注案件が検出結果に含まれていないこと
-    expect(result.unbilledDeals).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dealId: 'DEAL-003',
-        }),
-        expect.objectContaining({
-          dealId: 'DEAL-005',
-        }),
-      ])
+    // 期待結果の検証
+    expect(result.deal.status).toBe('成約');
+    expect(result.deal.deal_id).toBe('DEAL-001');
+
+    expect(result.invoice).toEqual(
+      expect.objectContaining({
+        deal_id: 'DEAL-001',
+        customer_id: 'CUST-001',
+        amount: 500000,
+        status: '未送付',
+      })
     );
 
-    // 検証4: ステータスが「受注」以外の案件は除外されること
-    expect(result.unbilledDeals).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dealId: 'DEAL-004',
-        }),
-      ])
+    expect(result.invoice.payment_link_id).toBe('PAY-001');
+
+    // DocumentStorageAdapterが呼び出されたことを確認
+    expect(mockDocumentStorage.uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deal_id: 'DEAL-001',
+        customer_id: 'CUST-001',
+        amount: 500000,
+      })
     );
 
-    // 検証5: 検出された未請求案件の合計金額が正確に計算されること
-    const expectedTotalUnbilledAmount = 500000 + 300000;
-    expect(result.totalUnbilledAmount).toBe(expectedTotalUnbilledAmount);
+    // NotificationServiceAdapterが呼び出されたことを確認
+    expect(mockNotificationService.sendInvoiceNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer_email: 'contact@yamada-shoji.jp',
+        invoice_id: expect.any(String),
+        amount: 500000,
+      })
+    );
 
-    // 検証6: 検出処理の実行結果が成功状態であること
-    expect(result.processStatus).toBe('success');
+    // PaymentGatewayAdapterが呼び出されたことを確認
+    expect(mockPaymentGateway.generatePaymentLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 500000,
+        invoice_id: expect.any(String),
+      })
+    );
 
-    // 検証7: 処理完了時刻が記録されていること
-    expect(result.detectionTimestamp).toBeDefined();
-    expect(typeof result.detectionTimestamp).toBe('string');
+    // 完了フラグの確認
+    expect(result.success).toBe(true);
+    expect(result.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
   });
 });

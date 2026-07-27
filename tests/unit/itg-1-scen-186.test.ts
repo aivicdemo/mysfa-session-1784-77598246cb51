@@ -1,33 +1,84 @@
-import { detectAndResolveDelayedDeals } from '../../src/logic/it-1784969823049-1-1-1';
+import { aggregateDealsProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
-  // SCEN-186
-  test('遅延案件の顧客対応完了後、商談ステータスと請求書発行日が一致することを確認する', () => {
-    const input = {
-      dealId: 'DEAL-2024-00001',
-      customerId: 'CUST-001',
-      dealStatus: 'OVERDUE',
-      dealAmount: 500000,
-      expectedBillingDate: new Date('2024-01-15T00:00:00Z'),
-      actualBillingDate: new Date('2024-02-10T00:00:00Z'),
-      customerResolutionCompletedAt: new Date('2024-02-10T14:30:00Z'),
-      billingInvoiceNumber: 'INV-2024-001',
-      invoiceIssuedDate: new Date('2024-02-10T14:35:00Z'),
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
+  test('SCEN-186: 顧客別商談進捗集計機能 - 交渉中ステータスの商談合計金額が0円のとき、その金額が0として集計される', () => {
+    // 準備: テストデータの構築
+    const customerId = 'CUST-001';
+    const aggregationPeriod = {
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-01-31'),
     };
 
-    const result = detectAndResolveDelayedDeals(input);
+    // 交渉中ステータスの複数件の商談（すべて金額0円）
+    const negotiatingDeals = [
+      {
+        dealId: 'DEAL-001',
+        customerId: customerId,
+        status: '交渉中',
+        amount: 0,
+        createdAt: new Date('2024-01-15'),
+      },
+      {
+        dealId: 'DEAL-002',
+        customerId: customerId,
+        status: '交渉中',
+        amount: 0,
+        createdAt: new Date('2024-01-20'),
+      },
+      {
+        dealId: 'DEAL-003',
+        customerId: customerId,
+        status: '交渉中',
+        amount: 0,
+        createdAt: new Date('2024-01-25'),
+      },
+    ];
 
-    expect(result.dealId).toBe('DEAL-2024-00001');
-    expect(result.dealStatus).toBe('COMPLETED');
-    expect(result.dealStatusUpdatedAt).toEqual(new Date('2024-02-10T14:30:00Z'));
-    expect(result.invoiceIssuedDate).toEqual(new Date('2024-02-10T14:35:00Z'));
-    expect(result.statusBillingDateMismatch).toBe(false);
-    expect(result.delayDetected).toBe(false);
-    expect(result.syncStatus).toBe('SYNCHRONIZED');
-    expect(result.discrepancyResolved).toBe(true);
-    expect(result.customerAmount).toBe(500000);
-    expect(result.billingAmount).toBe(500000);
-    expect(result.isResolved).toBe(true);
-    expect(result.resolutionTimestamp).toEqual(new Date('2024-02-10T14:35:00Z'));
+    // 他のステータスの商談も含める（確認用）
+    const otherStatusDeals = [
+      {
+        dealId: 'DEAL-004',
+        customerId: customerId,
+        status: '初期接触',
+        amount: 100000,
+        createdAt: new Date('2024-01-10'),
+      },
+      {
+        dealId: 'DEAL-005',
+        customerId: customerId,
+        status: '受注',
+        amount: 500000,
+        createdAt: new Date('2024-01-28'),
+      },
+    ];
+
+    const allDeals = [...negotiatingDeals, ...otherStatusDeals];
+
+    // 実行: 集計機能を呼び出し
+    const result = aggregateDealsProgressByCustomer(allDeals, aggregationPeriod);
+
+    // 検証: 交渉中ステータスの合計金額が0円として正確に集計されていること
+    const customerProgress = result.find((item) => item.customerId === customerId);
+    expect(customerProgress).toBeDefined();
+
+    const negotiatingProgress = customerProgress?.progressByStatus.find(
+      (status) => status.status === '交渉中'
+    );
+    expect(negotiatingProgress).toBeDefined();
+    expect(negotiatingProgress?.totalAmount).toBe(0);
+    expect(negotiatingProgress?.dealCount).toBe(3);
+
+    // 他のステータスが正常に集計されていることも確認
+    const initialContactProgress = customerProgress?.progressByStatus.find(
+      (status) => status.status === '初期接触'
+    );
+    expect(initialContactProgress?.totalAmount).toBe(100000);
+    expect(initialContactProgress?.dealCount).toBe(1);
+
+    const orderedProgress = customerProgress?.progressByStatus.find(
+      (status) => status.status === '受注'
+    );
+    expect(orderedProgress?.totalAmount).toBe(500000);
+    expect(orderedProgress?.dealCount).toBe(1);
   });
 });

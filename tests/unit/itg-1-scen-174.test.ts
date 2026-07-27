@@ -1,83 +1,85 @@
-import { generateInvoiceFromUnbilledDeal } from "../../src/logic/it-1-1";
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe("見積・注文・請求書の自動生成機能", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-174
-  test("未請求案件から顧客情報・金額・明細を自動抽出し請求書が正しく生成される", () => {
-    const unbilledDealInput = {
-      dealId: "DEAL-00123",
-      dealStatus: "成約",
-      customerId: "CUST-00045",
-      customerName: "株式会社テスト商社",
-      customerAddress: "東京都渋谷区道玄坂1-2-3",
-      customerPhone: "03-XXXX-XXXX",
-      dealAmount: 550000,
-      taxAmount: 50000,
-      totalAmount: 600000,
-      lineItems: [
-        {
-          itemId: "ITEM-001",
-          productName: "サーバーライセンス",
-          quantity: 2,
-          unitPrice: 200000,
-          lineAmount: 400000,
+  test('顧客別商談進捗集計機能 - 受注ステータスの商談件数が0件のとき、その件数が0として集計される', () => {
+    const customerId = 'CUST_001';
+    const customerName = 'テスト顧客A';
+
+    const dealsData = [
+      {
+        customerId: customerId,
+        dealId: 'DEAL_001',
+        dealName: '商談1',
+        status: 'estimation',
+        amount: 100000,
+      },
+      {
+        customerId: customerId,
+        dealId: 'DEAL_002',
+        dealName: '商談2',
+        status: 'proposal',
+        amount: 200000,
+      },
+      {
+        customerId: customerId,
+        dealId: 'DEAL_003',
+        dealName: '商談3',
+        status: 'negotiation',
+        amount: 150000,
+      },
+      {
+        customerId: customerId,
+        dealId: 'DEAL_004',
+        dealName: '商談4',
+        status: 'lost',
+        amount: 50000,
+      },
+    ];
+
+    const customersData = [
+      {
+        customerId: customerId,
+        customerName: customerName,
+      },
+    ];
+
+    const result = aggregateDealProgressByCustomer(customersData, dealsData);
+
+    expect(result).toEqual([
+      {
+        customerId: customerId,
+        customerName: customerName,
+        progressSummary: {
+          estimation: {
+            count: 1,
+            totalAmount: 100000,
+          },
+          proposal: {
+            count: 1,
+            totalAmount: 200000,
+          },
+          negotiation: {
+            count: 1,
+            totalAmount: 150000,
+          },
+          contract: {
+            count: 0,
+            totalAmount: 0,
+          },
+          lost: {
+            count: 1,
+            totalAmount: 50000,
+          },
         },
-        {
-          itemId: "ITEM-002",
-          productName: "サポート契約（1年）",
-          quantity: 1,
-          unitPrice: 150000,
-          lineAmount: 150000,
-        },
-      ],
-      invoiceGenerationDate: new Date("2024-04-15T09:00:00Z"),
-    };
+      },
+    ]);
 
-    const generatedInvoice = generateInvoiceFromUnbilledDeal(unbilledDealInput);
-
-    expect(generatedInvoice).toBeDefined();
-    expect(generatedInvoice.invoiceId).toBeDefined();
-    expect(generatedInvoice.invoiceStatus).toBe("確定");
-    expect(generatedInvoice.dealId).toBe("DEAL-00123");
-    expect(generatedInvoice.dealStatus).toBe("請求済み");
-    expect(generatedInvoice.customerId).toBe("CUST-00045");
-    expect(generatedInvoice.customerName).toBe("株式会社テスト商社");
-    expect(generatedInvoice.customerAddress).toBe("東京都渋谷区道玄坂1-2-3");
-    expect(generatedInvoice.customerPhone).toBe("03-XXXX-XXXX");
-    expect(generatedInvoice.subtotal).toBe(550000);
-    expect(generatedInvoice.taxAmount).toBe(50000);
-    expect(generatedInvoice.totalAmount).toBe(600000);
-
-    expect(generatedInvoice.lineItems).toHaveLength(2);
-    expect(generatedInvoice.lineItems[0]).toEqual({
-      itemId: "ITEM-001",
-      productName: "サーバーライセンス",
-      quantity: 2,
-      unitPrice: 200000,
-      lineAmount: 400000,
-    });
-    expect(generatedInvoice.lineItems[1]).toEqual({
-      itemId: "ITEM-002",
-      productName: "サポート契約（1年）",
-      quantity: 1,
-      unitPrice: 150000,
-      lineAmount: 150000,
-    });
-
-    expect(generatedInvoice.pdfOutputGenerated).toBe(true);
-    expect(generatedInvoice.pdfContent).toBeDefined();
-    expect(generatedInvoice.pdfContent.length).toBeGreaterThan(0);
-
-    const pdfValidation = generatedInvoice.pdfContent.includes(
-      "株式会社テスト商社"
-    ) &&
-      generatedInvoice.pdfContent.includes("600000") &&
-      generatedInvoice.pdfContent.includes("サーバーライセンス");
-
-    expect(pdfValidation).toBe(true);
-
-    expect(generatedInvoice.createdAt).toBeDefined();
-    expect(new Date(generatedInvoice.createdAt).toISOString()).toEqual(
-      new Date("2024-04-15T09:00:00Z").toISOString()
-    );
+    expect(result[0].progressSummary.contract.count).toBe(0);
+    expect(typeof result[0].progressSummary.contract.count).toBe('number');
+    expect(result[0].progressSummary.estimation.count).toBe(1);
+    expect(result[0].progressSummary.proposal.count).toBe(1);
+    expect(result[0].progressSummary.negotiation.count).toBe(1);
+    expect(result[0].progressSummary.lost.count).toBe(1);
   });
 });

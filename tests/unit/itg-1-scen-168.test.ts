@@ -1,61 +1,82 @@
-import { detectUnbilledAndDelayedCases } from "../../src/logic/it-1784969823049-1-1-1";
+import { aggregateDealProgressByCustomer } from '../../src/logic/it-1-3';
 
-describe("商談ステータスと請求書発行状況の自動照合・ズレ検出機能", () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-168
-  test("商談ステータスが『受注』でも請求書発行済みの案件は未請求案件として除外される", () => {
+  test('顧客別商談進捗集計機能 - 提案中ステータスの商談件数が0件のとき、その件数が0として集計される', () => {
+    const customerId = 'CUST_001';
+    const customerName = 'テスト顧客A';
+    
     const dealData = [
       {
-        dealId: "DEAL-001",
-        status: "受注",
+        dealId: 'DEAL_001',
+        customerId: customerId,
+        dealName: '商談1',
+        status: '初期接触',
         amount: 100000,
-        invoiceIssued: true,
-        invoiceIssuedDate: "2024-04-10",
       },
       {
-        dealId: "DEAL-002",
-        status: "受注",
-        amount: 150000,
-        invoiceIssued: false,
-        invoiceIssuedDate: null,
-      },
-      {
-        dealId: "DEAL-003",
-        status: "受注",
+        dealId: 'DEAL_002',
+        customerId: customerId,
+        dealName: '商談2',
+        status: 'ヒアリング',
         amount: 200000,
-        invoiceIssued: true,
-        invoiceIssuedDate: "2024-04-12",
       },
       {
-        dealId: "DEAL-004",
-        status: "完了",
-        amount: 50000,
-        invoiceIssued: false,
-        invoiceIssuedDate: null,
+        dealId: 'DEAL_003',
+        customerId: customerId,
+        dealName: '商談3',
+        status: 'クローズ',
+        amount: 150000,
       },
     ];
 
-    const result = detectUnbilledAndDelayedCases(dealData);
+    const activityData: any[] = [];
+    const periodStart = new Date('2024-01-01');
+    const periodEnd = new Date('2024-01-31');
 
-    expect(result.unbilledCases).toHaveLength(2);
-    expect(result.unbilledCases).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          dealId: "DEAL-002",
-          status: "受注",
-          amount: 150000,
-          invoiceIssued: false,
-        }),
-        expect.objectContaining({
-          dealId: "DEAL-004",
-          status: "完了",
-          amount: 50000,
-          invoiceIssued: false,
-        }),
-      ])
+    const result = aggregateDealProgressByCustomer(
+      dealData,
+      activityData,
+      periodStart,
+      periodEnd
     );
 
-    const unbilledDealIds = result.unbilledCases.map((c) => c.dealId);
-    expect(unbilledDealIds).not.toContain("DEAL-001");
-    expect(unbilledDealIds).not.toContain("DEAL-003");
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      customerId: customerId,
+      customerName: customerName,
+      progressByStatus: {
+        '初期接触': {
+          count: 1,
+          totalAmount: 100000,
+        },
+        'ヒアリング': {
+          count: 1,
+          totalAmount: 200000,
+        },
+        '提案中': {
+          count: 0,
+          totalAmount: 0,
+        },
+        '交渉中': {
+          count: 0,
+          totalAmount: 0,
+        },
+        '受注': {
+          count: 0,
+          totalAmount: 0,
+        },
+        '失注': {
+          count: 0,
+          totalAmount: 0,
+        },
+        'クローズ': {
+          count: 1,
+          totalAmount: 150000,
+        },
+      },
+      totalDealCount: 3,
+      totalAmount: 450000,
+    });
   });
 });

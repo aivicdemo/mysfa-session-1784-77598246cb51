@@ -1,25 +1,38 @@
-import { determineInvoicingTiming } from "../../src/logic/it-1-1";
+import { updateDealStatusToClosedAndLinkInvoice } from "../../src/logic/it-1-1";
 
 describe("見積・注文・請求書の自動生成と商談ステータス紐付け", () => {
   // SCEN-236
-  test("請求実行タイミング判定機能 - 月次請求タイプの商談レコードが正しく抽出対象として確定される", () => {
+  test("商談ステータスを成約に変更する際、請求データ紐付けで請求書発行日が今日の日付で設定される", () => {
+    const todayISO = "2024-01-15T00:00:00Z";
+    const todayDate = new Date(todayISO);
+
     const dealRecord = {
-      dealId: "DEAL-2024-001",
-      customerId: "CUST-0001",
-      dealAmount: 150000,
-      dealStatus: "受注",
-      invoicingType: "月次",
-      invoicingScheduledDate: "2024-02-01",
-      createdAt: "2024-01-15T10:30:00Z",
-      lastUpdatedAt: "2024-01-15T10:30:00Z",
+      deal_id: "DEAL-001",
+      customer_id: "CUST-001",
+      customer_name: "テスト顧客",
+      current_status: "交渉中",
+      deal_amount: 500000,
+      deal_items: [
+        {
+          item_id: "ITEM-001",
+          item_name: "商品A",
+          quantity: 10,
+          unit_price: 50000,
+        },
+      ],
     };
 
-    const result = determineInvoicingTiming(dealRecord);
+    const result = updateDealStatusToClosedAndLinkInvoice(dealRecord, todayDate);
 
-    expect(result.dealId).toBe("DEAL-2024-001");
-    expect(result.invoicingType).toBe("月次");
-    expect(result.extractionStatusConfirmed).toBe(true);
-    expect(result.dealStatus).toBe("抽出対象確定");
-    expect(result.confirmationTimestamp).toBeDefined();
+    expect(result.deal_status).toBe("成約");
+    expect(result.linked_invoice).toBeDefined();
+    expect(result.linked_invoice.invoice_issue_date).toEqual(todayDate);
+    expect(result.linked_invoice.customer_id).toBe("CUST-001");
+    expect(result.linked_invoice.customer_name).toBe("テスト顧客");
+    expect(result.linked_invoice.invoice_amount).toBe(500000);
+    expect(result.linked_invoice.invoice_items).toHaveLength(1);
+    expect(result.linked_invoice.invoice_items[0].item_name).toBe("商品A");
+    expect(result.linked_invoice.invoice_items[0].quantity).toBe(10);
+    expect(result.linked_invoice.invoice_items[0].unit_price).toBe(50000);
   });
 });

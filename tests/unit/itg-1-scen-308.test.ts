@@ -1,89 +1,88 @@
-import { validateMigrationDataConsistency } from '../../src/logic/it-1784969823049-1-1-1';
+import {
+  linkDealWithInvoice,
+  detectDiscrepancy,
+} from "../../src/logic/it-1784969823049-1-1-1";
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
+describe("商談ステータスと請求データの紐付け・可視化", () => {
   // SCEN-308
-  test('移行後データ一貫性検証機能 - Salesforceから自社システムへ移行されたデータが、売上実績と請求状況で完全に照合される', () => {
-    const migrationStartDate = new Date('2023-01-01T00:00:00Z');
-    const migrationEndDate = new Date('2024-01-01T00:00:00Z');
-    const targetPeriodStart = new Date('2023-01-01T00:00:00Z');
-    const targetPeriodEnd = new Date('2023-12-31T23:59:59Z');
+  test("商談レコードに見積金額が不在のとき、紐付けは実行されるが金額ズレ検出がスキップされる", () => {
+    const dealData = {
+      deal_id: "DEAL-308",
+      customer_name: "TestCorp",
+      status: "提案中",
+      estimated_amount: null,
+      invoice_id: null,
+    };
 
-    const salesRevenue = [
-      {
-        id: 'sr-001',
-        dealId: 'deal-001',
-        customerId: 'cust-001',
-        amount: 150000,
-        quantity: 1,
-        recordedDate: new Date('2023-06-15T10:30:00Z'),
-        status: '受注',
-      },
-      {
-        id: 'sr-002',
-        dealId: 'deal-002',
-        customerId: 'cust-002',
-        amount: 250000,
-        quantity: 2,
-        recordedDate: new Date('2023-07-20T14:15:00Z'),
-        status: '受注',
-      },
-      {
-        id: 'sr-003',
-        dealId: 'deal-003',
-        customerId: 'cust-003',
-        amount: 100000,
-        quantity: 1,
-        recordedDate: new Date('2023-08-10T09:45:00Z'),
-        status: '受注',
-      },
-    ];
+    const invoiceData = {
+      invoice_id: "INV-308",
+      deal_id: null,
+      invoice_amount: 500000,
+    };
 
-    const billingStatus = [
-      {
-        id: 'bill-001',
-        dealId: 'deal-001',
-        customerId: 'cust-001',
-        amount: 150000,
-        quantity: 1,
-        invoiceDate: new Date('2023-06-16T08:00:00Z'),
-        status: '請求済み',
+    const systemLogs: Array<{ level: string; message: string }> = [];
+    const mockLogger = {
+      info: (message: string) => {
+        systemLogs.push({ level: "INFO", message });
       },
-      {
-        id: 'bill-002',
-        dealId: 'deal-002',
-        customerId: 'cust-002',
-        amount: 250000,
-        quantity: 2,
-        invoiceDate: new Date('2023-07-21T08:00:00Z'),
-        status: '請求済み',
+      warn: (message: string) => {
+        systemLogs.push({ level: "WARN", message });
       },
-      {
-        id: 'bill-003',
-        dealId: 'deal-003',
-        customerId: 'cust-003',
-        amount: 100000,
-        quantity: 1,
-        invoiceDate: new Date('2023-08-11T08:00:00Z'),
-        status: '請求済み',
+      error: (message: string) => {
+        systemLogs.push({ level: "ERROR", message });
       },
-    ];
+    };
 
-    const result = validateMigrationDataConsistency({
-      targetPeriodStart,
-      targetPeriodEnd,
-      salesRevenue,
-      billingStatus,
+    const discrepancyDetectionCalls: Array<{
+      dealId: string;
+      estimatedAmount: number | null;
+      invoiceAmount: number;
+    }> = [];
+
+    const mockDiscrepancyDetector = {
+      detectDiscrepancy: (
+        dealId: string,
+        estimatedAmount: number | null,
+        invoiceAmount: number
+      ) => {
+        discrepancyDetectionCalls.push({
+          dealId,
+          estimatedAmount,
+          invoiceAmount,
+        });
+        return {
+          has_discrepancy: false,
+          warning_message: null,
+        };
+      },
+    };
+
+    const linkageResult = linkDealWithInvoice(dealData, invoiceData, {
+      logger: mockLogger,
+      discrepancyDetector: mockDiscrepancyDetector,
     });
 
-    expect(result.totalSalesRecords).toBe(3);
-    expect(result.totalBillingRecords).toBe(3);
-    expect(result.totalSalesAmount).toBe(500000);
-    expect(result.totalBillingAmount).toBe(500000);
-    expect(result.matchedCount).toBe(3);
-    expect(result.unmatchedCount).toBe(0);
-    expect(result.reconciliationRate).toBe(100);
-    expect(result.isCompletelyReconciled).toBe(true);
-    expect(result.mismatches).toHaveLength(0);
-    expect(result.amountDifference).toBe(0);
+    expect(linkageResult.deal_id).toBe("DEAL-308");
+    expect(linkageResult.invoice_id).toBe("INV-308");
+    expect(linkageResult.linkage_status).toBe("linked");
+
+    expect(linkageResult.linked_deal.deal_id).toBe("DEAL-308");
+    expect(linkageResult.linked_deal.invoice_id).toBe("INV-308");
+
+    expect(linkageResult.linked_invoice.invoice_id).toBe("INV-308");
+    expect(linkageResult.linked_invoice.deal_id).toBe("DEAL-308");
+
+    expect(discrepancyDetectionCalls).toHaveLength(0);
+
+    const skipLog = systemLogs.find(
+      (log) =>
+        log.level === "INFO" &&
+        log.message.includes("見積金額が不在のため金額ズレ検出をスキップしました")
+    );
+    expect(skipLog).toBeDefined();
+    expect(skipLog?.message).toMatch(/見積金額が不在/);
+
+    expect(linkageResult.amount_discrepancy_detected).toBe(false);
+    expect(linkageResult.amount_discrepancy_warning).toBe(null);
   });
 });

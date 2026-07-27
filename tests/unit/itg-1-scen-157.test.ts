@@ -1,90 +1,81 @@
-import { filterActivityRecordsByType } from '../../src/logic/it-1';
+import { aggregateMonthlySalesResults } from "../../src/logic/it-1-3";
 
-describe('顧客レコード画面の活動記録タイプフィルタリング機能', () => {
-  test('SCEN-157: 無効なタイプで絞り込んだ場合にエラーが発生する', () => {
-    const activityRecords = [
-      {
-        id: '1',
-        type: 'EMAIL',
-        description: 'Sent email',
-        createdAt: new Date('2024-01-10T10:00:00Z'),
-      },
-      {
-        id: '2',
-        type: 'PHONE',
-        description: 'Made phone call',
-        createdAt: new Date('2024-01-12T14:30:00Z'),
-      },
-      {
-        id: '3',
-        type: 'VISIT',
-        description: 'Visited customer',
-        createdAt: new Date('2024-01-15T09:00:00Z'),
-      },
+describe("売上実績・請求状況のリアルタイム集計・レポート生成", () => {
+  test("SCEN-157: [edge] 当月集計結果の月判定 - 月初日に登録された商談が当月集計に含まれる", () => {
+    // 基準日時を月初日に設定
+    const baseDate = new Date("2024-01-01T00:00:00Z");
+    const aggregationStartDate = new Date("2024-01-01T00:00:00Z");
+    const aggregationEndDate = new Date("2024-01-31T23:59:59Z");
+
+    // 当月集計対象の商談データ
+    const dealAtMonthStart = {
+      dealId: "DEAL001",
+      customerName: "テスト顧客A",
+      dealAmount: 100000,
+      status: "進行中",
+      registeredAt: new Date("2024-01-01T09:30:00Z"),
+    };
+
+    const dealAtMonthEnd = {
+      dealId: "DEAL002",
+      customerName: "テスト顧客B",
+      dealAmount: 50000,
+      status: "進行中",
+      registeredAt: new Date("2024-01-01T23:59:59Z"),
+    };
+
+    const dealFromPreviousMonth = {
+      dealId: "DEAL003",
+      customerName: "テスト顧客C",
+      dealAmount: 200000,
+      status: "進行中",
+      registeredAt: new Date("2023-12-31T23:59:59Z"),
+    };
+
+    // テスト対象の商談一覧
+    const allDeals = [
+      dealAtMonthStart,
+      dealAtMonthEnd,
+      dealFromPreviousMonth,
     ];
 
-    const validTypes = ['EMAIL', 'PHONE', 'VISIT'];
+    // 月集計処理を実行
+    const aggregationResult = aggregateMonthlySalesResults({
+      deals: allDeals,
+      aggregationStartDate,
+      aggregationEndDate,
+      referenceDate: baseDate,
+    });
 
-    // Test: 無効なタイプ値 'INVALID_TYPE' で絞り込むとエラーが発生する
-    expect(() =>
-      filterActivityRecordsByType(activityRecords, 'INVALID_TYPE', validTypes)
-    ).toThrow(/タイプ/);
-
-    // Test: 存在しないタイプID '9999' で絞り込むとエラーが発生する
-    expect(() =>
-      filterActivityRecordsByType(activityRecords, '9999', validTypes)
-    ).toThrow(/タイプ/);
-
-    // Test: 有効なタイプで絞り込むと成功する
-    const result = filterActivityRecordsByType(
-      activityRecords,
-      'EMAIL',
-      validTypes
+    // 期待結果: 当月に登録された2件の商談が含まれ、売上合計が150,000円
+    expect(aggregationResult.includedDeals).toHaveLength(2);
+    expect(aggregationResult.includedDeals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dealId: "DEAL001",
+          customerName: "テスト顧客A",
+        }),
+        expect.objectContaining({
+          dealId: "DEAL002",
+          customerName: "テスト顧客B",
+        }),
+      ])
     );
-    expect(result).toEqual([
-      {
-        id: '1',
-        type: 'EMAIL',
-        description: 'Sent email',
-        createdAt: new Date('2024-01-10T10:00:00Z'),
-      },
-    ]);
 
-    // Test: 複数の活動記録が同じタイプで絞り込まれる場合
-    const moreRecords = [
-      ...activityRecords,
-      {
-        id: '4',
-        type: 'EMAIL',
-        description: 'Sent follow-up email',
-        createdAt: new Date('2024-01-20T11:00:00Z'),
-      },
-    ];
-    const multiResult = filterActivityRecordsByType(
-      moreRecords,
-      'EMAIL',
-      validTypes
+    // 売上合計が150,000円
+    expect(aggregationResult.totalSalesAmount).toBe(150000);
+
+    // 前月登録の商談は集計結果に含まれていない
+    expect(aggregationResult.includedDeals).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dealId: "DEAL003",
+          customerName: "テスト顧客C",
+        }),
+      ])
     );
-    expect(multiResult.length).toBe(2);
-    expect(multiResult[0].id).toBe('4');
-    expect(multiResult[1].id).toBe('1');
 
-    // Test: 空の活動記録リストで絞り込むと空配列が返される
-    const emptyResult = filterActivityRecordsByType([], 'EMAIL', validTypes);
-    expect(emptyResult).toEqual([]);
-
-    // Test: null または undefined のタイプで絞り込むとエラーが発生する
-    expect(() =>
-      filterActivityRecordsByType(activityRecords, null as any, validTypes)
-    ).toThrow(/タイプ/);
-
-    expect(() =>
-      filterActivityRecordsByType(activityRecords, undefined as any, validTypes)
-    ).toThrow(/タイプ/);
-
-    // Test: 空文字列のタイプで絞り込むとエラーが発生する
-    expect(() =>
-      filterActivityRecordsByType(activityRecords, '', validTypes)
-    ).toThrow(/タイプ/);
+    // 件数確認
+    expect(aggregationResult.dealCount).toBe(2);
   });
 });

@@ -1,26 +1,48 @@
-import { validateBillingTargetData } from "../../src/logic/it-1-1";
+import { validateQuoteContent } from '../../src/logic/it-1-1';
 
-describe("見積・注文・請求書の自動生成機能", () => {
+describe('見積・注文・請求書の自動生成と商談ステータス紐付け', () => {
   // SCEN-246
-  test("請求対象データ妥当性検証機能 - 必須項目が欠落している商談データはエラーで拒否される", () => {
-    const deal_data = {
-      deal_id: "DEAL-2024-001",
-      deal_name: "顧客A 10万円案件",
-      customer_name: "",
-      customer_id: "CUST-001",
-      amount: 100000,
-      invoice_date: "2024-04-15",
-      line_items: [
+  test('帳票内容検証機能 - 顧客情報のメールアドレスが空の場合、警告を表示する', () => {
+    const mockNotificationServiceAdapter = {
+      sendQuoteNotification: jest.fn(),
+      sendOrderNotification: jest.fn(),
+      sendInvoiceNotification: jest.fn(),
+      getDeliveryStatus: jest.fn(),
+    };
+
+    const customerData = {
+      customerId: 'CUST-001',
+      customerName: '山田太郎',
+      email: '',
+      phoneNumber: '090-1234-5678',
+    };
+
+    const quoteData = {
+      quoteId: 'QT-001',
+      quoteAmount: 100000,
+      lineItems: [
         {
-          item_id: "ITEM-001",
-          item_name: "コンサルティングサービス",
+          itemId: 'ITEM-001',
+          itemName: '商品A',
           quantity: 1,
-          unit_price: 100000,
-          subtotal: 100000,
+          unitPrice: 100000,
         },
       ],
     };
 
-    expect(() => validateBillingTargetData(deal_data)).toThrow(/顧客名/);
+    const result = validateQuoteContent(
+      customerData,
+      quoteData,
+      mockNotificationServiceAdapter
+    );
+
+    expect(result.isValid).toBe(false);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/メールアドレス/),
+      ])
+    );
+    expect(result.warnings[0]).toMatch(/未入力|入力必須|空|空文字/);
+    expect(mockNotificationServiceAdapter.sendQuoteNotification).not.toHaveBeenCalled();
   });
 });

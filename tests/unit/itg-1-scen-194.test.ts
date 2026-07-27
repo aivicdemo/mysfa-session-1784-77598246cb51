@@ -1,50 +1,47 @@
-import { validateDealStatusTransition } from '../../src/logic/it-1784969823049-2-1-1';
+import { aggregateCustomerDealProgress } from '../../src/logic/it-1-3';
 
-describe('商談レコードの進捗ステータスと提案内容の入力・保存機能', () => {
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-194
-  test('正当なステータス遷移（提案中→受注）が承認される', () => {
-    const current_deal = {
-      deal_id: 'DEAL-001',
-      customer_id: 'CUST-001',
-      customer_name: '株式会社テスト',
-      status: '提案中',
-      amount: 1000000,
-      created_at: '2024-01-15T10:00:00Z',
-      updated_at: '2024-01-15T10:30:00Z',
-      detail_items: [
-        {
-          item_id: 'ITEM-001',
-          product_name: '営業管理システムライセンス',
-          quantity: 10,
-          unit_price: 100000,
-          line_amount: 1000000,
-        },
-      ],
-    };
+  test('顧客別商談進捗集計機能 - 失注ステータスの商談が複数件のとき、合計金額が正確に集計される', () => {
+    const customerId = 'CUST-001';
+    const customerName = 'テスト顧客A';
 
-    const target_status = '受注';
-
-    const result = validateDealStatusTransition(current_deal, target_status);
-
-    expect(result).toEqual({
-      is_valid: true,
-      can_transition: true,
-      previous_status: '提案中',
-      new_status: '受注',
-      transition_timestamp: expect.any(String),
-      status_history_record: {
-        deal_id: 'DEAL-001',
-        from_status: '提案中',
-        to_status: '受注',
-        transition_reason: expect.any(String),
-        transitioned_at: expect.any(String),
+    const deals = [
+      {
+        dealId: 'DEAL-001',
+        customerId: customerId,
+        dealName: '案件1',
+        status: '失注',
+        amount: 500000,
       },
-    });
+      {
+        dealId: 'DEAL-002',
+        customerId: customerId,
+        dealName: '案件2',
+        status: '失注',
+        amount: 300000,
+      },
+      {
+        dealId: 'DEAL-003',
+        customerId: customerId,
+        dealName: '案件3',
+        status: '失注',
+        amount: 200000,
+      },
+    ];
 
-    expect(result.is_valid).toBe(true);
-    expect(result.can_transition).toBe(true);
-    expect(result.new_status).toBe('受注');
-    expect(result.status_history_record.from_status).toBe('提案中');
-    expect(result.status_history_record.to_status).toBe('受注');
+    const result = aggregateCustomerDealProgress(customerId, customerName, deals);
+
+    expect(result.customerId).toBe(customerId);
+    expect(result.customerName).toBe(customerName);
+    expect(result.progressByStatus).toEqual(
+      expect.objectContaining({
+        失注: {
+          count: 3,
+          totalAmount: 1000000,
+        },
+      })
+    );
+    expect(result.progressByStatus.失注.totalAmount).toBe(1000000);
   });
 });

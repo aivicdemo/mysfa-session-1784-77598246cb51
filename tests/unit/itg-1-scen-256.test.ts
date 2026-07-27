@@ -1,54 +1,35 @@
-import { detectSalesRevenueDiscrepancy } from '../../src/logic/it-1784969823049-1-1-1';
+import { validateQuoteContent } from "../../src/logic/it-1-1";
 
-describe('商談ステータスと請求書発行状況の自動照合・ズレ検出機能', () => {
+describe("見積・注文・請求書の自動生成と商談ステータス紐付け", () => {
   // SCEN-256
-  test('売上請求ズレ検出機能 - 商談が受注ステータスで請求書が発行済みの場合に売上計上予定日と請求日が一致して照合成功と判定される', () => {
-    const dealRecordId = 'DEAL-001';
-    const customerId = 'CUST-001';
-    const dealAmount = 1000000;
-    const dealStatus = '受注';
-    const revenueRecognitionDate = new Date('2024-04-15T00:00:00Z');
-    const invoiceId = 'INV-001';
-    const invoiceStatus = '発行済み';
-    const invoiceIssuedDate = new Date('2024-04-15T00:00:00Z');
-
-    const testDealData = {
-      dealRecordId: dealRecordId,
-      customerId: customerId,
-      dealAmount: dealAmount,
-      dealStatus: dealStatus,
-      revenueRecognitionDate: revenueRecognitionDate,
+  test("帳票内容検証機能 - 見積明細の単価が0円の場合、警告を表示する", () => {
+    const quoteData = {
+      quote_id: "QT-20240115-001",
+      customer_id: "CUST-12345",
+      customer_name: "テスト顧客株式会社",
+      quote_date: "2024-01-15",
+      line_items: [
+        {
+          line_number: 1,
+          product_name: "ソフトウェアライセンス",
+          quantity: 5,
+          unit_price: 0,
+          subtotal: 0,
+        },
+      ],
+      total_amount: 0,
     };
 
-    const testInvoiceData = {
-      invoiceId: invoiceId,
-      dealRecordId: dealRecordId,
-      customerId: customerId,
-      invoiceStatus: invoiceStatus,
-      invoiceIssuedDate: invoiceIssuedDate,
-      invoiceAmount: dealAmount,
-    };
+    const validationResult = validateQuoteContent(quoteData);
 
-    const result = detectSalesRevenueDiscrepancy(testDealData, testInvoiceData);
-
-    expect(result).toEqual({
-      dealRecordId: dealRecordId,
-      invoiceId: invoiceId,
-      matchStatus: '照合成功',
-      dealStatus: dealStatus,
-      invoiceStatus: invoiceStatus,
-      revenueRecognitionDate: revenueRecognitionDate,
-      invoiceIssuedDate: invoiceIssuedDate,
-      discrepancyDays: 0,
-      isDiscrepancyDetected: false,
-      unmatchedInvoiceFlag: false,
-      delayedInvoiceFlag: false,
-    });
-
-    expect(result.matchStatus).toBe('照合成功');
-    expect(result.isDiscrepancyDetected).toBe(false);
-    expect(result.discrepancyDays).toBe(0);
-    expect(result.unmatchedInvoiceFlag).toBe(false);
-    expect(result.delayedInvoiceFlag).toBe(false);
+    expect(validationResult.is_valid).toBe(false);
+    expect(validationResult.warnings).toContainEqual(
+      expect.objectContaining({
+        line_number: 1,
+        warning_type: "zero_unit_price",
+        message: expect.stringMatching(/単価.*0円/),
+      })
+    );
+    expect(validationResult.can_save).toBe(true);
   });
 });

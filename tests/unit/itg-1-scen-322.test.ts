@@ -1,143 +1,80 @@
-import { describe, test, expect, beforeEach, afterEach } from '@jest/globals';
-import { calculateROIAnalysis } from '../../src/logic/it-1-3';
+import { generateMonthlyFinancialReport } from '../../src/logic/it-1-3';
 
-describe('ROI試算・投資判断支援機能 - 3年間の累積削減額バリデーション', () => {
-  let systemLogs: Array<{ timestamp: string; eventType: string; message: string }> = [];
-
-  beforeEach(() => {
-    systemLogs = [];
-  });
-
-  afterEach(() => {
-    systemLogs = [];
-  });
-
+describe('売上実績・請求状況のリアルタイム集計・レポート生成', () => {
   // SCEN-322
-  test('3年間の累積削減額がゼロ以下の場合、ROI試算は実行不可となり適切なエラーメッセージが表示される', () => {
-    const initialInvestment = 500000;
-    const annualReductionAmount = -50000;
-    const analysisYears = 3;
+  test('年度をまたぐ期間が指定されたとき、両年度のレコードが正確に集計される', () => {
+    const prior_fiscal_records = [
+      {
+        sales_date: '2024-03-25',
+        amount: 100000,
+        fiscal_year: '2023',
+      },
+      {
+        sales_date: '2024-03-26',
+        amount: 100000,
+        fiscal_year: '2023',
+      },
+      {
+        sales_date: '2024-03-27',
+        amount: 100000,
+        fiscal_year: '2023',
+      },
+      {
+        sales_date: '2024-03-30',
+        amount: 100000,
+        fiscal_year: '2023',
+      },
+      {
+        sales_date: '2024-03-31',
+        amount: 100000,
+        fiscal_year: '2023',
+      },
+    ];
 
-    const mockLogger = (eventType: string, message: string) => {
-      const timestamp = new Date('2024-01-15T11:00:00Z').toISOString();
-      systemLogs.push({ timestamp, eventType, message });
-    };
+    const current_fiscal_records = [
+      {
+        sales_date: '2024-04-01',
+        amount: 150000,
+        fiscal_year: '2024',
+      },
+      {
+        sales_date: '2024-04-02',
+        amount: 150000,
+        fiscal_year: '2024',
+      },
+      {
+        sales_date: '2024-04-03',
+        amount: 150000,
+        fiscal_year: '2024',
+      },
+    ];
 
-    // 年間削減額が負数のケース（3年間の累積削減額 = -50000 * 3 = -150000）
-    expect(() => {
-      calculateROIAnalysis({
-        initialInvestment,
-        annualReductionAmount,
-        analysisYears,
-        logger: mockLogger
-      });
-    }).toThrow(/投資効果/);
+    const all_sales_records = [...prior_fiscal_records, ...current_fiscal_records];
 
-    // システムログに該当エラーイベントが記録されていることを確認
-    expect(systemLogs.length).toBeGreaterThan(0);
-    expect(systemLogs.some(log => log.eventType === 'ROI_CALCULATION_ERROR')).toBe(true);
-    expect(systemLogs.some(log => log.message.includes('投資効果がないため'))).toBe(true);
-  });
+    const report = generateMonthlyFinancialReport(
+      all_sales_records,
+      '2024-03-25',
+      '2024-04-05'
+    );
 
-  test('3年間の累積削減額がゼロの場合、ROI試算は実行不可となり適切なエラーが発生する', () => {
-    const initialInvestment = 500000;
-    const annualReductionAmount = 0;
-    const analysisYears = 3;
+    const prior_fiscal_year_data = report.fiscal_year_breakdown.find(
+      (fy) => fy.fiscal_year === '2023'
+    );
+    const current_fiscal_year_data = report.fiscal_year_breakdown.find(
+      (fy) => fy.fiscal_year === '2024'
+    );
 
-    const mockLogger = (eventType: string, message: string) => {
-      const timestamp = new Date('2024-01-15T11:00:00Z').toISOString();
-      systemLogs.push({ timestamp, eventType, message });
-    };
+    expect(prior_fiscal_year_data).toBeDefined();
+    expect(prior_fiscal_year_data?.record_count).toBe(2);
+    expect(prior_fiscal_year_data?.total_amount).toBe(200000);
+    expect(prior_fiscal_year_data?.fiscal_year_flag).toBe('2023年度');
 
-    // 年間削減額が0のケース（3年間の累積削減額 = 0 * 3 = 0）
-    expect(() => {
-      calculateROIAnalysis({
-        initialInvestment,
-        annualReductionAmount,
-        analysisYears,
-        logger: mockLogger
-      });
-    }).toThrow(/投資効果/);
+    expect(current_fiscal_year_data).toBeDefined();
+    expect(current_fiscal_year_data?.record_count).toBe(2);
+    expect(current_fiscal_year_data?.total_amount).toBe(300000);
+    expect(current_fiscal_year_data?.fiscal_year_flag).toBe('2024年度');
 
-    expect(systemLogs.length).toBeGreaterThan(0);
-    expect(systemLogs.some(log => log.eventType === 'ROI_CALCULATION_ERROR')).toBe(true);
-  });
-
-  test('3年間の累積削減額が正数の場合、ROI試算が正常に実行され具体的な数値が計算される', () => {
-    const initialInvestment = 500000;
-    const annualReductionAmount = 200000;
-    const analysisYears = 3;
-
-    const mockLogger = (eventType: string, message: string) => {
-      const timestamp = new Date('2024-01-15T11:00:00Z').toISOString();
-      systemLogs.push({ timestamp, eventType, message });
-    };
-
-    // 年間削減額が正数のケース（3年間の累積削減額 = 200000 * 3 = 600000）
-    const result = calculateROIAnalysis({
-      initialInvestment,
-      annualReductionAmount,
-      analysisYears,
-      logger: mockLogger
-    });
-
-    // 3年間の累積削減額が初期投資を上回る場合、ROI試算が成功
-    expect(result.cumulativeReductionAmount).toBe(600000);
-    expect(result.roi).toBe(20); // (600000 - 500000) / 500000 * 100 = 20%
-    expect(result.paybackPeriodYears).toBe(2.5); // 500000 / 200000 = 2.5年
-    expect(result.isExecutable).toBe(true);
-
-    // ログ記録
-    expect(systemLogs.some(log => log.eventType === 'ROI_CALCULATION_SUCCESS')).toBe(true);
-  });
-
-  test('年間削減額が少額でも3年間の累積削減額が正数なら試算は実行可能', () => {
-    const initialInvestment = 300000;
-    const annualReductionAmount = 100000;
-    const analysisYears = 3;
-
-    const mockLogger = (eventType: string, message: string) => {
-      const timestamp = new Date('2024-01-15T11:00:00Z').toISOString();
-      systemLogs.push({ timestamp, eventType, message });
-    };
-
-    // 年間削減額が小さいが正数のケース（3年間の累積削減額 = 100000 * 3 = 300000）
-    const result = calculateROIAnalysis({
-      initialInvestment,
-      annualReductionAmount,
-      analysisYears,
-      logger: mockLogger
-    });
-
-    expect(result.cumulativeReductionAmount).toBe(300000);
-    expect(result.roi).toBe(0); // (300000 - 300000) / 300000 * 100 = 0%
-    expect(result.isExecutable).toBe(true);
-  });
-
-  test('初期投資額より3年間の累積削減額が大きい場合、ROIが正の値で計算される', () => {
-    const initialInvestment = 400000;
-    const annualReductionAmount = 150000;
-    const analysisYears = 3;
-
-    const mockLogger = (eventType: string, message: string) => {
-      systemLogs.push({
-        timestamp: new Date('2024-01-15T11:00:00Z').toISOString(),
-        eventType,
-        message
-      });
-    };
-
-    // 3年間の累積削減額 = 150000 * 3 = 450000 > 400000
-    const result = calculateROIAnalysis({
-      initialInvestment,
-      annualReductionAmount,
-      analysisYears,
-      logger: mockLogger
-    });
-
-    expect(result.cumulativeReductionAmount).toBe(450000);
-    expect(result.roi).toBe(12.5); // (450000 - 400000) / 400000 * 100 = 12.5%
-    expect(result.paybackPeriodYears).toBeCloseTo(2.67, 1); // 400000 / 150000 ≈ 2.67年
-    expect(result.isExecutable).toBe(true);
+    expect(report.total_records_in_period).toBe(4);
+    expect(report.total_amount_in_period).toBe(500000);
   });
 });
